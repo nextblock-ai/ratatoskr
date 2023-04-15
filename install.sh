@@ -6,9 +6,16 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-# Clone the Ratatoskr repository into the user's home folder
-echo "Cloning Ratatoskr repository..."
-git clone https://github.com/nextblock-ai/ratatoskr.git ~/.ratatoskr
+# Check if the Ratatoskr repository already exists in the user's home folder
+if [ -d ~/.ratatoskr ]; then
+  echo "Ratatoskr repository already exists. Updating to the latest version..."
+  cd ~/.ratatoskr || exit
+  git pull origin main
+else
+  # Clone the Ratatoskr repository into the user's home folder
+  echo "Cloning Ratatoskr repository..."
+  git clone https://github.com/nextblock-ai/ratatoskr.git ~/.ratatoskr
+fi
 
 # Detect the user's shell
 user_shell=$(basename "$SHELL")
@@ -29,10 +36,6 @@ case $user_shell in
     ;;
 esac
 
-# Reload the shell
-echo "Reloading the shell..."
-source ~/.bashrc
-
 # Prompt the user for their OpenAI API key
 echo "Please enter your OpenAI API key:"
 read -r openai_api_key
@@ -41,10 +44,8 @@ read -r openai_api_key
 echo "Saving your OpenAI API key to the .env file..."
 echo "OPENAI_API_KEY=${openai_api_key}" >~/.ratatoskr/.env
 
-# Check if Ratatoskr is installed
-if command -v ratatoskr >/dev/null 2>&1; then
-  echo "Ratatoskr has been installed successfully!"
-else
-  echo "Error: Ratatoskr installation failed. Please add the following line to your shell configuration file (e.g., ~/.bashrc, ~/.zshrc) manually:"
-  echo 'export PATH="$HOME/.ratatoskr/bin:$PATH"'
-fi
+echo "Ratatoskr has been installed/updated successfully!"
+
+echo "Please restart your shell or run 'source ~/.bashrc' (for bash) or 'source ~/.zshrc' (for zsh) to complete the installation."
+echo "If you experience any issues, try adding the following line to your shell configuration file (e.g. ~/.bashrc or ~/.zshrc):"
+echo 'export PATH="$HOME/.ratatoskr/bin:$PATH"'

@@ -14,10 +14,11 @@ openai.apiKey = process.env.OPENAI_KEY;
 
 // Load all files in ./src (excluding __test__)
 async function loadFiles(targetFolder) {
-    const srcPath = path.join(__dirname, targetFolder);
-    let files = (await fs.readdir(srcPath))
+    const srcPath = path.join(__dirname, '..', targetFolder);
+    let files = await fs.readdir(srcPath);
+    files = files
         .filter((file) => !file.includes("__tests__"))
-        .filter((file) => fs.lstatSync(path.join(srcPath, file)).isFile())
+        .filter((file) => fs.lstatSync(path.join(srcPath, file)).isFile());
     files = files
         .map(async (file) => {
             const content = await fs.readFile(path.join(srcPath, file), "utf-8");

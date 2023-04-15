@@ -13,6 +13,24 @@ Ratatoskr is an AI-powered coding assistant that helps you search and replace te
 
 ## Installation
 
+### Using the Installer
+
+To **install** or **update** rototoskr, you should run the [install script][2]. To do that, you may either download and run the script manually, or use the following cURL or Wget command:
+
+```sh
+curl -o- https://raw.githubusercontent.com/nextblock-ai/rototoskr/v0.0.1/install.sh | bash
+```
+```sh
+wget -qO- https://raw.githubusercontent.com/nextblock-ai/rototoskr/v0.0.1/install.sh | bash
+```
+
+The install process will ask you for an OpenAI API key. You can get one [here][1].
+
+[1]: https://beta.openai.com/account/api-keys
+[2]: https://raw.githubusercontent.com/nextblock-ai/rototoskr/v0.0.1/install.sh
+
+### Manually
+
 1. Clone the repository:
 
 ```

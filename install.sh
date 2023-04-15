@@ -1,20 +1,29 @@
 #!/bin/bash
 
+# Check if the shell is interactive
+if [[ $- != *i* ]]; then
+    echo "Error: This script must be run in an interactive shell."
+    echo "Please download the script and run it manually:"
+    echo "  curl -O https://raw.githubusercontent.com/nextblock-ai/ratatoskr/v0.0.1/install.sh"
+    echo "  bash install.sh"
+    exit 1
+fi
+
 # Check if git is installed
 if ! command -v git >/dev/null 2>&1; then
-  echo "Error: git is not installed. Please install git and try again."
-  exit 1
+    echo "Error: git is not installed. Please install git and try again."
+    exit 1
 fi
 
 # Check if the Ratatoskr repository already exists in the user's home folder
 if [ -d ~/.ratatoskr ]; then
-  echo "Ratatoskr repository already exists. Updating to the latest version..."
-  cd ~/.ratatoskr || exit
-  git pull origin main
+    echo "Ratatoskr repository already exists. Updating to the latest version..."
+    cd ~/.ratatoskr || exit
+    git pull origin main
 else
-  # Clone the Ratatoskr repository into the user's home folder
-  echo "Cloning Ratatoskr repository..."
-  git clone https://github.com/nextblock-ai/ratatoskr.git ~/.ratatoskr
+    # Clone the Ratatoskr repository into the user's home folder
+    echo "Cloning Ratatoskr repository..."
+    git clone https://github.com/nextblock-ai/ratatoskr.git ~/.ratatoskr
 fi
 
 # Detect the user's shell
@@ -23,10 +32,10 @@ user_shell=$(basename "$SHELL")
 # Add Ratatoskr to the PATH
 echo "Adding Ratatoskr to the PATH..."
 case $user_shell in
-  "bash")
+    "bash")
     echo 'export PATH="$HOME/.ratatoskr/bin:$PATH"' >>~/.bashrc
     ;;
-  "zsh")
+    "zsh")
     echo 'export PATH="$HOME/.ratatoskr/bin:$PATH"' >>~/.zshrc
     ;;
   *)

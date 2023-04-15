@@ -3,59 +3,66 @@ const blessed = require("blessed");
 const fs = require("fs-extra");
 const path = require("path");
 const ora = require("ora");
-const { OpenAIApi, Configuration } = require("openai");
-const configuration = new Configuration({ apiKey: process.env.OPENAI_KEY });
-const openai = new OpenAIApi(configuration);
+
 const {
     terminal,
     fileList,
-    fileContent,
     outputLog,
     inputBox,
-    statusBar,
 } = require("./screen");
 const {
     loadFiles,
     createConversation,
-    getUserInput,
     getCompletion,
     updateFile,
-    getUserConfirmation,
-    processCommand,
 } = require("./code");
-
-openai.apiKey = process.env.OPENAI_KEY;
 
 let conversation;
 let files;
 
+async function getUserConfirmation() {
+    let prompt;
+    // return new Promise((resolve, reject) => {
+    //     prompt = blessed.prompt({
+    //         top: 'center',
+    //         left: 'center',
+    //         width: '50%',
+    //         height: 'shrink',
+    //         label: 'Confirmation',
+    //         border: { type: 'line' },
+    //         keys: true,
+    //         mouse: true,
+    //     });
+    //     prompt.on('click', function(data) {
+    //         prompt.focus();
+    //     });
+    //     terminal.append(prompt);
+    //     prompt.show();
+    // });
+    return true;
+}
+
+
 const yargs = require("yargs");
 const argv = yargs.argv;
 
-const targetFolder = argv._[0];
+let targetFolder = argv._[0];
 
 if (!targetFolder) {
     console.error("Please provide a target folder as the first argument.");
-    process.exit(1);
+    // process.exit(1);
 }
 
 // Load the files and populate the fileList component
-(async () => {
+const loadScreen = async () => {
     files = await loadFiles(targetFolder);
     const fileNames = files.map((file) => file.name);
     fileList.setItems(fileNames);
-    conversation = await createConversation(files);
+    conversation = !conversation ? await createConversation(files) : conversation;
     terminal.render();
-})();
+};
+loadScreen();
 
-// Update event listeners and interaction logic
-fileList.on("select", async (item) => {
-    const fileName = item.content;
-    const file = files.find((f) => f.name === fileName);
-    fileContent.setContent(file.content);
-    statusBar.setContent(`Status: Selected file: ${fileName} | Updates applied: 0`);
-    terminal.render();
-});
 
 inputBox.on("submit", async (value) => {
     outputLog.insertBottom(`User: ${value}`);
@@ -66,22 +73,22 @@ inputBox.on("submit", async (value) => {
     outputLog.insertBottom(`AI: ${completion}`);
     terminal.render();
 
-    const editCommands = completion.matchAll(/!edit\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"/g);
+    const editCommands = completion.matchAll(/!edit\s+"((?:\\"|[^"])*)"\s+"((?:\\"|[^"])*)"\s+"((?:\\"|[^"])*)"/g);
     const updates = {};
     for (const command of editCommands) {
         const [_, fileName, searchPattern, replacement] = command;
         const file = files.find((f) => f.name === fileName);
-
         if (file) {
             const regex = new RegExp(searchPattern, "g");
+            // we need to remove the backslashes from the replacement string but save the newlines
+            const replacement = command[3].replace(/\\n/g, "\n").replace(/\\(.)/g, "$1");
             const newContent = file.content.replace(regex, replacement);
             updates[fileName] = newContent;
         }
     }
-
+try {
     for (const fileName of Object.keys(updates).sort()) {
         const confirmed = await getUserConfirmation();
-
         if (confirmed) {
             const file = files.find((f) => f.name === fileName);
             file.content = updates[fileName];
@@ -91,9 +98,18 @@ inputBox.on("submit", async (value) => {
             outputLog.insertBottom(`Changes to ${fileName} were not applied.`);
         }
     }
-    terminal.render();
+} catch(e) {
+    console.error(e);
+} finally {
+    process.stdin.resume();
+}
+
 });
 
 fileList.focus();
 terminal.render();
-terminal.key(["q", "C-c"], () => process.exit(0));
+terminal.key(['q', 'C-c'], () => process.exit(0));
+// terminal.key(['/'], () => {
+//     // placeholder - we will add a popup box here to gather a new target folder
+//     targetFolder = blessed.helpers.escape(targetFolder);
+// });

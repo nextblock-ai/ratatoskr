@@ -21,7 +21,7 @@ async function loadFiles(targetFolder) {
         .filter((file) => !file.includes("__tests__"))
         .map(async (file) => {
             const content = await fs.readFile(path.join(srcPath, file), "utf-8");
-            if (content.includes('gpt-exclude: true')) return undefined;
+            if (content.includes('ratatoskr-exclude: true')&&file!=='code.js') return undefined;
             return { name: file, content };
         })
         .filter((file) => file !== undefined)
@@ -52,12 +52,13 @@ Echo statement format:
 
 - <message>: The message to echo back to the user.
 
-Make sure to properly encode newlines and special characters in your response. RESPOND ONLY WITH CONTROL STATEMENTS OR ECHO STATEMENTS.`,
+ RESPOND ONLY WITH CONTROL STATEMENTS OR ECHO STATEMENTS.`,
     };
 
     const messages = files.map((file) => ({
         role: "system",
-        content: `The content of ${file.name}:\n${file.content}`,
+        content: `The content of ${file.name}:
+${file.content}`,
     }));
 
     // Add the initial message to the conversation
@@ -66,22 +67,12 @@ Make sure to properly encode newlines and special characters in your response. R
     return messages;
 }
 
-// Get user input
-async function getUserInput() {
-    const response = await enquirer.prompt({
-        type: "input",
-        name: "input",
-        message: "Enter your instruction:",
-    });
-    return response.input;
-}
-
 async function getCompletion(messages, requeryIncompletes = true) {
     const conversation = {
         model: 'gpt-4',
         messages,
         max_tokens: 2048,
-        temperature: 0.2,
+        temperature: 0.05,
     }
     let isJson = false, responseMessage = '';
     const _query = async (conversation, iter) => {
@@ -111,17 +102,8 @@ async function getCompletion(messages, requeryIncompletes = true) {
 
 // Update the file content and save it
 async function updateFile(file, newContent) {
-    const srcPath = path.join(__dirname, "src", file);
-    await fs.writeFile(srcPath, newContent, "utf-8");
-}
-
-async function getUserConfirmation() {
-    const response = await enquirer.prompt({
-        type: "confirm",
-        name: "confirmed",
-        message: "Do you want to apply the changes?",
-    });
-    return response.confirmed;
+    const srcPath = path.join(__dirname, file);
+    fs.writeFileSync(srcPath, newContent, "utf-8");
 }
 
 async function processCommand(command, files) {
@@ -135,7 +117,9 @@ async function processCommand(command, files) {
         // Update the file content, save it, and return the updated content
         file.content = newContent;
         await updateFile(fileName, newContent);
-        return `File ${fileName} updated successfully.\nThe content of ${fileName}:\n${newContent}`;
+        return `File ${fileName} updated successfully.
+The content of ${fileName}:
+${newContent}`;
     } else {
         return `File ${fileName} not found.`;
     }
@@ -144,9 +128,7 @@ async function processCommand(command, files) {
 module.exports = {
     loadFiles,
     createConversation,
-    getUserInput,
     getCompletion,
     updateFile,
-    getUserConfirmation,
     processCommand,
 };

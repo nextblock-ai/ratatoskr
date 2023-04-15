@@ -1,9 +1,10 @@
 const blessed = require("blessed");
+const contrib = require("blessed-contrib");
 
 // Create a screen object
 const screen = blessed.screen({
     smartCSR: true,
-    title: "AI Regex Assistant",
+    title: 'AI Assistant',
 });
 
 // Create the title bar
@@ -12,7 +13,7 @@ const titleBar = blessed.box({
     left: 0,
     width: "100%",
     height: 1,
-    content: "AI Regex Assistant",
+    content: 'Rototoskr',
     style: {
         fg: "white",
         bg: "blue",
@@ -24,7 +25,7 @@ const fileList = blessed.list({
     top: 1,
     left: 0,
     width: "30%",
-    height: "60%",
+    height: "50%",
     label: "Files",
     border: {
         type: "line",
@@ -40,11 +41,11 @@ const fileList = blessed.list({
 });
 
 // Create the file content box
-const fileContent = blessed.box({
+const fileContent = contrib.markdown({
     top: 1,
     left: "30%",
     width: "70%",
-    height: "60%",
+    height: "50%",
     label: "File Content",
     content: "", // Populate this with the content of the selected file
     scrollable: true,
@@ -62,10 +63,10 @@ const fileContent = blessed.box({
 
 // Create the output log
 const outputLog = blessed.textarea({
-    top: "60%",
+    top: "52%",
     left: 0,
     width: "100%",
-    height: "20%",
+    height: "35%",
     label: "Output Log",
     content: "", // Update this with AI responses and results
     scrollable: true,
@@ -86,7 +87,7 @@ const inputBox = blessed.textbox({
     bottom: 1,
     left: 0,
     width: "100%",
-    height: 3,
+    height: 5,
     label: "[Input]",
     border: {
         type: "line",
@@ -102,7 +103,7 @@ const statusBar = blessed.box({
     left: 0,
     width: "100%",
     height: 1,
-    content: "Status: Selected file: file1.txt | Updates applied: 0",
+    content: "",
     style: {
         fg: "white",
         bg: "blue",
@@ -117,30 +118,14 @@ screen.append(outputLog);
 screen.append(inputBox);
 screen.append(statusBar);
 
-// Set up event listeners and interaction logic
-fileList.on("select", (item) => {
-    // Update the file content and status bar when a new file is selected
-    fileContent.setContent("New file content goes here");
-    statusBar.setContent(`Status: Selected file: ${item.content} | Updates applied: 0`);
-    screen.render();
+// Update event listeners and interaction logic
+fileList.on("select", async (item) => {
+    const fileName = item.content;
+    const file = files.find((f) => f.name === fileName);
+    fileContent.setMarkdown(`\`\`\`javascript\n${file.content}\n\`\`\``);
+    statusBar.setContent(`Status: Selected file: ${fileName} | Updates applied: 0`);
+    terminal.render();
 });
-
-inputBox.on("submit", (value) => {
-    // Handle user input and update the output log
-    outputLog.insertBottom(`User: ${value}`);
-    // Call your AI function here and update the output log with the AI response
-    outputLog.insertBottom(`AI: AI response goes here`);
-    screen.render();
-});
-
-// Focus on the file list by default
-fileList.focus();
-
-// Render the screen
-screen.render();
-
-// Handle exit
-screen.key(["q", "C-c"], () => process.exit(0));
 
 module.exports = {
     terminal: screen,
@@ -148,5 +133,5 @@ module.exports = {
     fileContent,
     outputLog,
     inputBox,
-    statusBar,
+    statusBar
 };

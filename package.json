@@ -1,15 +1,17 @@
 {
   "name": "ratatoskr",
   "version": "1.0.0",
+  "author": "Sebastian Schepis",
   "description": "An iterative-coding command-line utility that uses GPT-4",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
   "license": "ISC",
   "dependencies": {
     "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "chalk": "^4.1.2",
     "dotenv": "^16.0.3",
     "enquirer": "^2.3.6",
     "fs-extra": "^11.1.1",
@@ -17,5 +19,8 @@
     "ora": "^5.4.1",
     "yargs": "^17.7.1",
     "yargs-parser": "^21.1.1"
+  },
+  "devDependencies": {
+    "jest": "^29.5.0"
   }
 }

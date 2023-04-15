@@ -9,6 +9,8 @@ const {
     fileList,
     outputLog,
     inputBox,
+    fileContent,
+    statusBar
 } = require("./screen");
 const {
     loadFiles,
@@ -105,6 +107,16 @@ try {
 }
 
 });
+
+// Update event listeners and interaction logic
+fileList.on("select", async (item) => {
+    const fileName = item.content;
+    const file = files.find((f) => f.name === fileName);
+    fileContent.setMarkdown(`\`\`\`javascript\n${file.content}\n\`\`\``);
+    statusBar.setContent(`Status: Selected file: ${fileName} | Updates applied: 0`);
+    terminal.render();
+});
+
 
 fileList.focus();
 terminal.render();

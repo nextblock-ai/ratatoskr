@@ -1,6 +1,5 @@
 const blessed = require("blessed");
 const contrib = require("blessed-contrib");
-const {files} = require("../src/index");
 
 // Create a screen object
 const screen = blessed.screen({
@@ -118,15 +117,6 @@ screen.append(fileContent);
 screen.append(outputLog);
 screen.append(inputBox);
 screen.append(statusBar);
-
-// Update event listeners and interaction logic
-fileList.on("select", async (item) => {
-    const fileName = item.content;
-    const file = files.find((f) => f.name === fileName);
-    fileContent.setMarkdown(`\`\`\`javascript\n${file.content}\n\`\`\``);
-    statusBar.setContent(`Status: Selected file: ${fileName} | Updates applied: 0`);
-    terminal.render();
-});
 
 module.exports = {
     terminal: screen,

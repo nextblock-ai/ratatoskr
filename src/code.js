@@ -3,7 +3,6 @@ require("dotenv").config();
 const enquirer = require("enquirer");
 const fs = require("fs-extra");
 const path = require("path");
-const blessed = require("blessed");
 const ora = require("ora");
 
 const { OpenAIApi, Configuration } = require('openai');

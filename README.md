@@ -1,17 +1,21 @@
 # Ratatoskr
 
-Ratatoskr is an AI-powered coding assistant that helps you search and replace text in files using regular expressions it returns in response to your code requests. Ratatoskr leverages the power of OpenAI's GPT-4 to understand your instructions and perform the required modifications to the files.
+Ratatoskr is an AI-powered coding assistant that removes the manual coding required whem working with most GPT extensions. Ratatoskr leverages the power of OpenAI's GPT-4 to understand your instructions and perform the required modifications to the files via a set of commands it uses to answer your questions. This turns the AI's response into a set of actions that are then applied to the files, making Ratatoskr a powerful tool for developers.
 
 ## Features
 
 - Load files from a specified folder
-- Display file content and allow file selection
-- Receive user instructions for search and replace operations
-- Utilize OpenAI's GPT-4 to process instructions and generate regex patterns
-- Apply changes to the files based on the generated regex patterns
-- Display output log with user instructions and AI responses
+- Display file contents in a colorized code view
+- Use the arrow keys to navigate the file list
+- Press Enter to select a file to view it
+- Type your instruction in the input box and press Enter to submit
+- The AI will process your instruction and show you the proposed changes
+- Press `y` to accept the pattern or `n` to reject it
+- Press `q` or `C-c` to exit the application
 
 ## Installation
+
+You can install ratatoskr using the [install script][2] or manually.
 
 ### Using the Installer
 
@@ -23,6 +27,23 @@ curl -o- https://raw.githubusercontent.com/nextblock-ai/ratatoskr/v0.0.1/install
 ```sh
 wget -qO- https://raw.githubusercontent.com/nextblock-ai/ratatoskr/v0.0.1/install.sh | bash
 ```
+
+*Note about the Install Script:* You need to run the install script in an interactive shell. If you are using a non-interactive shell, you can run the script with the `--interactive` flag:
+
+```sh
+curl -o- https://raw.githubusercontent.com/nextblock-ai/ratatoskr/v0.0.1/install.sh | bash -s -- --interactive
+```
+```sh
+wget -qO- https://raw.githubusercontent.com/nextblock-ai/ratatoskr/v0.0.1/install.sh | bash -s -- --interactive
+```
+
+If that doesn't work, follow the manual installation instructions below then add the `ratatoskr` command to your path:
+    
+    ```sh
+    export PATH="$PATH:$(npm bin -g)"
+    ```
+
+### OpenAI API Key
 
 The install process will ask you for an OpenAI API key. You can get one [here][1].
 

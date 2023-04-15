@@ -13,7 +13,7 @@ const titleBar = blessed.box({
     left: 0,
     width: "100%",
     height: 1,
-    content: 'Rototoskr',
+    content: 'Ratatoskr',
     style: {
         fg: "white",
         bg: "blue",

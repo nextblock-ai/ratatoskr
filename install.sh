@@ -6,15 +6,15 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-# Clone the Rototoskr repository into the user's home folder
-echo "Cloning Rototoskr repository..."
-git clone https://github.com/nextblock-ai/rototoskr.git ~/.ratatoskr
+# Clone the Ratatoskr repository into the user's home folder
+echo "Cloning Ratatoskr repository..."
+git clone https://github.com/nextblock-ai/ratatoskr.git ~/.ratatoskr
 
 # Detect the user's shell
 user_shell=$(basename "$SHELL")
 
-# Add Rototoskr to the PATH
-echo "Adding Rototoskr to the PATH..."
+# Add Ratatoskr to the PATH
+echo "Adding Ratatoskr to the PATH..."
 case $user_shell in
   "bash")
     echo 'export PATH="$HOME/.ratatoskr/bin:$PATH"' >>~/.bashrc
@@ -37,14 +37,14 @@ source ~/.bashrc
 echo "Please enter your OpenAI API key:"
 read -r openai_api_key
 
-# Save the OpenAI API key to a .env file in the Rototoskr home folder
+# Save the OpenAI API key to a .env file in the Ratatoskr home folder
 echo "Saving your OpenAI API key to the .env file..."
 echo "OPENAI_API_KEY=${openai_api_key}" >~/.ratatoskr/.env
 
-# Check if Rototoskr is installed
-if command -v rototoskr >/dev/null 2>&1; then
-  echo "Rototoskr has been installed successfully!"
+# Check if Ratatoskr is installed
+if command -v ratatoskr >/dev/null 2>&1; then
+  echo "Ratatoskr has been installed successfully!"
 else
-  echo "Error: Rototoskr installation failed. Please add the following line to your shell configuration file (e.g., ~/.bashrc, ~/.zshrc) manually:"
+  echo "Error: Ratatoskr installation failed. Please add the following line to your shell configuration file (e.g., ~/.bashrc, ~/.zshrc) manually:"
   echo 'export PATH="$HOME/.ratatoskr/bin:$PATH"'
 fi

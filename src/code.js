@@ -130,5 +130,5 @@ module.exports = {
     createConversation,
     getCompletion,
     updateFile,
-    processCommand,
+    processCommand
 };

@@ -113,3 +113,8 @@ terminal.key(['q', 'C-c'], () => process.exit(0));
 //     // placeholder - we will add a popup box here to gather a new target folder
 //     targetFolder = blessed.helpers.escape(targetFolder);
 // });
+
+
+module.exports = {
+    files
+}

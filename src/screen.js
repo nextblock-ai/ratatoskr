@@ -1,5 +1,6 @@
 const blessed = require("blessed");
 const contrib = require("blessed-contrib");
+const {files} = require("../src/index");
 
 // Create a screen object
 const screen = blessed.screen({

@@ -1,13 +1,6 @@
 #!/bin/bash
 
-# Check if the shell is interactive
-if [[ $- != *i* ]]; then
-    echo "Error: This script must be run in an interactive shell."
-    echo "Please download the script and run it manually:"
-    echo "  curl -O https://raw.githubusercontent.com/nextblock-ai/ratatoskr/v0.0.1/install.sh"
-    echo "  bash install.sh"
-    exit 1
-fi
+
 
 # Check if git is installed
 if ! command -v git >/dev/null 2>&1; then

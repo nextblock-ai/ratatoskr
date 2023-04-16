@@ -5,7 +5,8 @@
   "description": "An iterative-coding command-line utility that uses GPT-4",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "start": "node src/index.js"
   },
   "license": "ISC",
   "dependencies": {

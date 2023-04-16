@@ -22,7 +22,7 @@ async function loadFiles(targetFolder) {
     files = files
         .map(async (file) => {
             const content = await fs.readFile(path.join(srcPath, file), "utf-8");
-            if (content.includes('ratatoskr-exclude: true')&&file!=='code.js') return undefined;
+            if (content.includes('ratatoskr:exclude')&&file!=='code.js') return undefined;
             return { name: file, content };
         })
         .filter((file) => file !== undefined)

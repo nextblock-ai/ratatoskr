@@ -82,9 +82,16 @@ OPENAI_KEY=your_openai_api_key
 
 1. Run the application with the target folder as the first argument:
 
-```
+```bash
 node index.js target_folder
 ```
+
+or 
+    
+```bash
+ratatoskr target_folder
+```
+
 
 2. Use the arrow keys to navigate the file list and press Enter to select a file to view it
 
@@ -93,6 +100,36 @@ node index.js target_folder
 4. The AI will process your instruction and show you the proposed changes. Press `y` to accept the pattern or `n` to reject it.
 
 5. Press `q` or `C-c` to exit the application.
+
+### Excluding Files
+
+You can exclude files from the list by adding the string `ratatoskr:exclude` anywhere in the file:
+    
+```js
+// ratatoskr:exclude
+```
+
+```python
+# ratatoskr:exclude
+```
+
+```html
+<!-- ratatoskr:exclude -->
+```
+
+```css
+/* ratatoskr:exclude */
+```
+
+```json
+// ratatoskr:exclude
+```
+
+```yaml
+# ratatoskr:exclude
+```
+
+
 
 ## License
 

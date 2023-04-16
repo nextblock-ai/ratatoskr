@@ -26,9 +26,7 @@ async function loadFiles(targetFolder) {
             return { name: file, content };
         })
         .filter((file) => file !== undefined)
-    let fileContents = await Promise.all(
-        files
-    );
+    let fileContents = await Promise.all( files );
     fileContents = fileContents.filter((file) => file !== undefined);
 
     return fileContents;
@@ -53,7 +51,7 @@ Echo statement format:
 
 - <message>: The message to echo back to the user.
 
- RESPOND ONLY WITH CONTROL STATEMENTS OR ECHO STATEMENTS.`,
+RESPOND ONLY WITH CONTROL STATEMENTS OR ECHO STATEMENTS.`,
     };
 
     const messages = files.map((file) => ({
@@ -69,37 +67,20 @@ ${file.content}`,
 }
 
 async function getCompletion(messages, requeryIncompletes = true) {
-    const conversation = {
-        model: 'gpt-4',
-        messages,
-        max_tokens: 2048,
-        temperature: 0.05,
-    }
+    const conversation = { model: 'gpt-4', messages, max_tokens: 2048, temperature: 0.05 };
     let isJson = false, responseMessage = '';
     const _query = async (conversation, iter) => {
-        const spinner = ora("Querying GPT-4").start();
         let completion = await openai.createChatCompletion(conversation);
-        spinner.stop();
-        let response = await new Promise((resolve) => {
-            responseMessage += completion.data.choices[0].message.content.trim();
-            if (iter === 0 && responseMessage.startsWith('{') || responseMessage.startsWith('[')) {
-                isJson = true;
-            }
-            if (isJson && requeryIncompletes) {
-                if (responseMessage.endsWith('}') || responseMessage.endsWith(']')) {
-                    return resolve(responseMessage);
-                } else {
-                    conversation.messages.push({ role: 'assistant', content: response });
-                    responseMessage += completion;
-                    return resolve(_query(conversation, iter + 1));
-                }
-            } else return resolve(completion.data.choices[0].message.content.trim());
-        });
+        responseMessage += completion.data.choices[0].message.content.trim();
+        if (iter === 0 && (responseMessage.startsWith('{') || responseMessage.startsWith('['))) isJson = true;
+        if (isJson && requeryIncompletes && !(responseMessage.endsWith('}') || responseMessage.endsWith(']'))) {
+            conversation.messages.push({ role: 'assistant', content: responseMessage });
+            return _query(conversation, iter + 1);
+        }
         return responseMessage;
     }
-    const completion = await _query(conversation, 0);
-    return completion;
-};
+    return await _query(conversation, 0);
+}
 
 // Update the file content and save it
 async function updateFile(file, newContent) {
@@ -126,10 +107,37 @@ ${newContent}`;
     }
 }
 
-module.exports = {
-    loadFiles,
-    createConversation,
-    getCompletion,
-    updateFile,
-    processCommand
-};
+async function processEcho(message) {
+    return message;
+}
+
+async function processMessage(message, files) {
+    if (message.startsWith("!edit")) {
+        return await processCommand(message, files);
+    } else if (message.startsWith("!echo")) {
+        return await processEcho(message);
+    } else {
+        return "Invalid command. Please try again.";
+    }
+}
+
+async function main() {
+    const files = await loadFiles(__dirname);
+    const messages = await createConversation(files);
+    
+    const prompt = await enquirer.prompt({
+        type: "input",
+        name: "message",
+        message: "Enter a command:",
+    });
+    const spinner = ora("Processing...").start();
+    const { message } = await prompt;
+    messages.push({ role: "user", content: message });
+
+    const completion = await getCompletion(messages);
+    spinner.stop();
+    const response = await processMessage(completion, files);
+    console.log(response);
+}
+
+main();

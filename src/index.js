@@ -24,28 +24,15 @@ async function main() {
         smartCSR: true,
         title: 'AI Assistant',
     });
-    const [
-        titleBar,
-        fileList,
-        outputLog,
-        inputBox,
-        statusBar,
-    ] = Object.values(jsonConfig).map((config) => blessed[config.type](config)).map((element) => {
-        return element;
-    });
-    const [
-        fileContent,
-    ] = Object.values(contribConfig).map((config) => contrib[config.type](config)).map((element) => {
-
+    const [titleBar, fileList, outputLog, inputBox, statusBar,]
+        = Object.values(jsonConfig).map((config) => blessed[config.type](config)).map((element) => {
+            return element;
+        });
+    const [fileContent,] = Object.values(contribConfig).map((config) => contrib[config.type](config)).map((element) => {
         return element;
     });
     [
-        titleBar,
-        fileList,
-        fileContent,
-        outputLog,
-        inputBox,
-        statusBar,
+        titleBar, fileList, fileContent, outputLog, inputBox, statusBar,
     ].forEach((element) => {
         terminal.append(element);
     });
@@ -122,27 +109,74 @@ ${file.content}`,
 
     let conversation;
 
-    async function getUserConfirmation(screen) {
-        let prompt;
-        return new Promise((resolve, reject) => {
-            prompt = blessed.prompt({
-                parent: screen,
-                top: 'center',
-                left: 'center',
-                width: '50%',
-                height: 'shrink',
-                label: 'Confirmation',
-                border: { type: 'line' },
-                keys: true,
-                mouse: true,
-            });
-            prompt.on('click', function (data) {
-                prompt.focus();
-            });
-            terminal.append(prompt);
-            prompt.show();
+    async function getUserConfirmation(screen, message = 'Are you sure you want to proceed?', onYes, onNo) {
+        // Create a box element for the dialog
+        const dialog = blessed.box({
+            top: 'center',
+            left: 'center',
+            width: '50%',
+            height: 'shrink',
+            tags: true,
+            keys: true,
+            border: { type: 'line' },
+            label: 'Confirmation',
         });
-        return true;
+
+        // Set the content of the dialog
+        dialog.setContent(message);
+
+        // Create Yes and No buttons
+        const yesButton = blessed.button({
+            mouse: true,
+            keys: true,
+            shrink: true,
+            padding: { left: 1, right: 1 },
+            left: '25%',
+            top: 2,
+            tags: true,
+            name: 'yes',
+            content: 'Yes',
+            style: { focus: { inverse: true } },
+        });
+
+        const noButton = blessed.button({
+            mouse: true,
+            keys: true,
+            shrink: true,
+            padding: { left: 1, right: 1 },
+            left: '50%',
+            top: 2,
+            tags: true,
+            name: 'no',
+            content: 'No',
+            style: { focus: { inverse: true } },
+        });
+
+        // Add event listeners for the buttons
+        yesButton.on('press', () => {
+            dialog.detach();
+            screen.render();
+            onYes();
+        });
+
+        noButton.on('press', () => {
+            dialog.detach();
+            screen.render();
+            onNo();
+        });
+
+        // Add the buttons to the dialog box
+        dialog.append(yesButton);
+        dialog.append(noButton);
+
+        // Focus on the Yes button by default
+        yesButton.focus();
+
+        // Add the dialog box to the screen
+        screen.append(dialog);
+
+        // Render the screen
+        screen.render();
     }
 
     const argv = yargs.argv;
@@ -189,15 +223,18 @@ ${file.content}`,
         }
         try {
             for (const fileName of Object.keys(updates).sort()) {
-                const confirmed = await getUserConfirmation();
-                if (confirmed) {
+                await getUserConfirmation(terminal, `Do you want to apply the following changes to ${fileName}?
+                ${updates[fileName]}
+                `, async () => {
                     const file = files.find((f) => f.name === fileName);
                     file.content = updates[fileName];
                     await updateFile(fileName, updates[fileName]);
                     outputLog.insertBottom(`File ${fileName} updated successfully.`);
-                } else {
+                    terminal.render();
+                }, () => {
                     outputLog.insertBottom(`Changes to ${fileName} were not applied.`);
-                }
+                    terminal.render();
+                });
             }
         } catch (e) {
             console.error(e);
@@ -215,7 +252,6 @@ ${file.content}`,
         statusBar.setContent(`Status: Selected file: ${fileName} | Updates applied: 0`);
         terminal.render();
     });
-
 
     fileList.focus();
     terminal.render();

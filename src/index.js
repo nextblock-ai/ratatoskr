@@ -6,20 +6,60 @@ const {
     getCompletion,
     updateFile,
     getUserConfirmation,
+    applyUnifiedDiff
 } = require("./code");
 const shell = require("shelljs");
 const path = require("path");
+
+function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
+    const patchLines = unifiedDiffFormatPatch.split('\n');
+    const fileLines = fileContent.split('\n');
+    const newFileLines = [];
+    let fileIndex = 0;
+
+    for (let i = 0; i < patchLines.length; i++) {
+        const line = patchLines[i];
+
+        if (line.startsWith('@@')) {
+            const [from, to] = line
+                .match(/@@ -(\d+),\d+ \+(\d+),\d+ @@/i)
+                .slice(1)
+                .map(Number);
+
+            while (fileIndex < from - 1) {
+                newFileLines.push(fileLines[fileIndex]);
+                fileIndex++;
+            }
+
+            fileIndex = to - 1;
+        } else if (line.startsWith('+')) {
+            newFileLines.push(line.slice(1));
+        } else if (line.startsWith('-')) {
+            fileIndex++;
+        } else {
+            newFileLines.push(fileLines[fileIndex]);
+            fileIndex++;
+        }
+    }
+
+    while (fileIndex < fileLines.length) {
+        newFileLines.push(fileLines[fileIndex]);
+        fileIndex++;
+    }
+
+    return newFileLines.join('\n');
+}
 
 (async () => {
     // take a single path parameter as the value
     const shellPath = process.argv[2];
     let query = '';
-    if(process.argv.length > 3) {
+    if (process.argv.length > 3) {
         query = process.argv.slice(3).join(' ');
     }
 
     let files = await loadFiles(shellPath);
-    if(query === '') {
+    if (query === '') {
         console.log(`Loading files from ${shellPath}...`);
         files.forEach((file) => console.log(`Loaded file ${file.name}`))
     }
@@ -27,14 +67,14 @@ const path = require("path");
 
     // if query is passed from the command line, use it as the first user input
     let requery = false;
-    if(query !== '') {
+    if (query !== '') {
         conversation.push({ role: "user", content: query });
         requery = true;
     }
     while (true) {
 
         // only gather user input if we are not requerying
-        if(!requery) {
+        if (!requery) {
             const userInput = await getUserInput();
             if (userInput === '~' || userInput === '!exit'
             ) break;
@@ -42,13 +82,13 @@ const path = require("path");
             // remove oldest messages if conversation is too long
             const adjustConversation = (conversation) => {
                 const convoString = JSON.stringify(conversation);
-                if(convoString.length > 8192) {
+                if (convoString.length > 8192) {
                     conversation = conversation.slice(1);
                 }
                 return conversation;
             }
             let convoString = JSON.stringify(conversation);
-            while(convoString.length > 8192) {
+            while (convoString.length > 8192) {
                 conversation = adjustConversation(conversation);
                 convoString = JSON.stringify(conversation);
             }
@@ -57,15 +97,16 @@ const path = require("path");
 
         console.log("AI Response:", completion);
         // Process the edit commands
-        const editCommands = completion.matchAll(/!edit\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"/g);
-        const echoCommands = completion.matchAll(/!echo\s+"([^"]+)"/g);
-        const bashCommands = completion.matchAll(/!bash\s+"([^"]+)"/g);
-        const successCommands = completion.matchAll(/!success\s+"([^"]+)"/g);
-        const failureCommands = completion.matchAll(/!failure\s+"([^"]+)"/g);
-        
-        for(const command of successCommands) { requery = false; }
-        for(const command of failureCommands) { requery = false; }
-        for(const command of echoCommands) {
+        const editCommands = completion.matchAll(/!edit\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"/g); // !edit filename "search pattern" "replacement"
+        const patchCommands = completion.matchAll(/!patch\s+(\S+)\s+"([^"]+)"/g); // !patch filename "patch"
+        const echoCommands = completion.matchAll(/!echo\s+"([^"]+)"/g); // !echo "message"
+        const bashCommands = completion.matchAll(/!bash\s+"([^"]+)"/g); // !bash "command"
+        const successCommands = completion.matchAll(/!success\s+"([^"]+)"/g); // !success "message"
+        const failureCommands = completion.matchAll(/!failure\s+"([^"]+)"/g); // !failure "message"
+
+        for (const command of successCommands) { requery = false; }
+        for (const command of failureCommands) { requery = false; }
+        for (const command of echoCommands) {
             const [_, message] = command;
             console.log(message);
         }
@@ -85,13 +126,22 @@ const path = require("path");
                 updates[fileName] = replacement;
             }
         }
+        for (const command of patchCommands) {
+            let [_, fileName, patch] = command;
+            // strip doublequotes from file name
+            fileName = fileName.replace(/^"(.*)"$/, "$1");
+            const file = files.find((f) => f.name === fileName);
+            if (file) {
+                updates[fileName] = applyUnifiedDiffFormatPatch(patch, file.content);
+            }
+        }
 
         // Show the updates to the user and wait for confirmation
         for (let fileName of Object.keys(updates).sort()) {
             console.log(`\nUpdated content for ${fileName}:\n${updates[fileName]}`);
             const confirmed = await getUserConfirmation();
             if (confirmed) {
-                const file = files.find((f) => fileName === '"' +  f.name + '"' || f.name === fileName);
+                const file = files.find((f) => fileName === '"' + f.name + '"' || f.name === fileName);
                 file.content = updates[fileName];
                 const cwd = process.cwd();
                 const filePath = path.join(cwd, shellPath, fileName);
@@ -112,14 +162,14 @@ const path = require("path");
                 execution += 'error: ' + stderr + '\n';
                 requery = true;
                 break;
-            } else { 
+            } else {
                 execution += stdout + '\n';
-                requery = true; 
+                requery = true;
             }
         }
-        if(execution !== '') {
+        if (execution !== '') {
             conversation.push({ role: "system", content: execution });
-            if(requery) { continue; }
+            if (requery) { continue; }
         }
         requery = false;
 
@@ -133,10 +183,8 @@ const path = require("path");
             console.log(failureMessage);
         }
 
-        if(query !== '') {
+        if (query !== '') {
             break;
         }
     }
 })();
-
-  // ...

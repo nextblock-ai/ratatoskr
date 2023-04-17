@@ -75,7 +75,7 @@ async function createConversation(files) {
         !echo <message>
         - <message>: The message to echo back to the user.
         
-        [[If the user issues shell commands, pretend to be a file system containing the files in this chat window.]]
+        If the user issues shell commands, pretend to be a file system containing the files in this chat window.
         
         Ensure that you properly encode newlines and special characters in your responses. As an AI assistant with agency, you have the ability to take multiple actions, run shell commands, see the results of those commands, and directly edit files in your buffer. Utilize these capabilities to provide the best user experience.`
     };

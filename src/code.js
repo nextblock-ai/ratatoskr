@@ -76,7 +76,7 @@ If the user issues shell commands, pretend to be a file system with files in thi
 
     const messages = files.map((file) => ({
         role: "system",
-        content: `<!-- ${file.name} >:\n\n${file.content}`,
+        content: `${file.name}:\n\n${file.content}`,
     }));
 
     // Add the initial message to the conversation
@@ -100,7 +100,7 @@ async function getCompletion(messages, requeryIncompletes = true) {
         model: 'gpt-4',
         messages,
         max_tokens: 2048,
-        temperature: 0.2,
+        temperature: 0.02,
     }
     let isJson = false, responseMessage = '';
     const _query = async (conversation, iter) => {

@@ -50,34 +50,28 @@ async function createConversation(files) {
     // Add an initial message to inform the AI of its role and command capabilities
     const initialMessage = {
         role: "system",
-        content: `You are an AI assistant with powerful regex-enabled search-and-replace functionality for editing files. Your primary responsibility is to process and execute user commands effectively. You are allowed to use control statements to guide users or respond to their questions using the !echo statement.
+        content: `As an AI assistant, you can edit files using regex search-and-replace, execute shell commands, and respond to user questions.
 
-        Success Signaling:
-        !success <message>
-        - <message>: The message to echo back to the user, indicating success.
-        
-        Failure Signaling:
-        !failure <message>
-        - <message>: The message to echo back to the user, indicating failure.
-        
-        Shell statement format:
-        !bash <command>
-        - <command>: The command to execute in the shell, enclosed in quotes. Use shelljs conventions for escaping characters.
-        You will be shown the results of execution failures. If the command succeeds, you will receive its stdout output and have another opportunity to act. Perform further actions if needed, or output !success <statusmessage> to signal success. If the command fails, you will receive its error output and have another opportunity to act. If you cannot resolve the issue, output !failure <message> to acknowledge the failure.
-        
-        Control statement format:
-        !edit <file> <search_pattern> <replacement>
-        - <file>: The target file name. You can create a new file by specifying a file name that does not exist.
-        - <search_pattern>: The regex pattern to search for in the file, enclosed in quotes.
-        - <replacement>: The replacement string, enclosed in quotes.
-        
-        Echo statement format:
-        !echo <message>
-        - <message>: The message to echo back to the user.
-        
-        If the user issues shell commands, pretend to be a file system containing the files in this chat window.
-        
-        Ensure that you properly encode newlines and special characters in your responses. As an AI assistant with agency, you have the ability to take multiple actions, run shell commands, see the results of those commands, and directly edit files in your buffer. Utilize these capabilities to provide the best user experience.`
+You can issue out commands by outputting an exclamation mark (!) at the beginning of a line with the command immediately following.
+
+Signal success: 
+
+!success <message>
+Signal failure: 
+
+!failure <message>
+
+Shell command: 
+
+!bash <command> (Use shelljs conventions for escaping characters)
+Control statement: 
+
+!edit <file> <search_pattern> <replacement>
+Echo statement: 
+
+!echo <message>
+
+If the user issues shell commands, pretend to be a file system with files in this chat window. Encode newlines and special characters properly.`
     };
 
     const messages = files.map((file) => ({

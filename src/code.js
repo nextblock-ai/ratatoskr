@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const enquirer = require("enquirer");
 const fs = require("fs-extra");
+const fsp = require("fs").promises;
 const path = require("path");
 const blessed = require("blessed");
 const ora = require("ora");
@@ -15,32 +16,33 @@ openai.apiKey = process.env.OPENAI_KEY;
 
 // Load all files in ./src (excluding __test__)
 async function loadFiles(shellPath) {
-    // get the cwd
     const cwd = process.cwd();
     const srcPath = path.join(cwd, shellPath);
-    let files = await fs.readdir(srcPath);
-    // filter out folders
-    files = files
-        .filter((file) => !file.includes("__tests__"))
-        .map(async (file) => {
-            const fPath = path.join(srcPath, file);
-            if(fs.lstatSync(fPath).isDirectory()) {
-                return undefined;
-            }
-            const content = await fs.readFile(, "utf-8");
-            if (content.includes('gpt-exclude: true')) {
-                console.log(`Excluding file ${file} from training data`)
-                return undefined;
-            }
-            return { name: file, content };
-        })
-        .filter((file) => file !== undefined)
-    let fileContents = await Promise.all(
-        files
-    );
-    fileContents = fileContents.filter((file) => file !== undefined);
 
-    return fileContents;
+    async function loadFilesRecursively(dirPath) {
+        let files = await fsp.readdir(dirPath);
+        let fileContents = [];
+        for (const file of files) {
+            const fPath = path.join(dirPath, file);
+            if (file.includes("__tests__") || file.includes("node_modules")) {
+                continue;
+            }
+            const stats = await fs.lstat(fPath);
+            if (stats.isDirectory()) {
+                const subDirFiles = await loadFilesRecursively(fPath);
+                fileContents = fileContents.concat(subDirFiles);
+            } else {
+                const content = await fs.readFile(fPath, "utf-8");
+                if (content.includes("gpt-exclude: true")) {
+                    console.log(`Excluding file ${file} from training data`);
+                } else {
+                    fileContents.push({ name: file, content });
+                }
+            }
+        }
+        return fileContents;
+    }
+    return await loadFilesRecursively(srcPath);
 }
 
 // Create an OpenAI conversation with the contents of the loaded files

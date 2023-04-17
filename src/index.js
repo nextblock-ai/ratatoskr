@@ -98,8 +98,8 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
         console.log("AI Response:", completion);
         // Process the edit commands
 
-        const editCommands = completion.matchAll(/!edit\s+"([^"]+)"\s+"([^"]+)"\s+"([^"]+)"/g); // !edit filename "search pattern" "replacement"
-        const patchCommands = completion.matchAll(/!patch\s+(\S+)\s+"([^"]+)"/g); // !patch filename "patch"
+        const editCommands = completion.matchAll(/!edit\s+\"([^\"]+)\"\s+\"([^\"]+)\"\s+\"([^\"]+)\"/g); // !edit filename "search pattern" "replacement"
+        const patchCommands = completion.matchAll(/!patch\s+"([^"]+)"\s+"([^"]+)"/g); // !patch filename "patch"
         const echoCommands = completion.matchAll(/!echo\s+"([^"]+)"/g); // !echo "message"
         const bashCommands = completion.matchAll(/!bash\s+"([^"]+)"/g); // !bash "command"
         const successCommands = completion.matchAll(/!success\s+"([^"]+)"/g); // !success "message"
@@ -129,7 +129,7 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
         for (const command of patchCommands) {
             let [_, fileName, patch] = command;
             // strip doublequotes from file name
-            fileName = fileName.replace(/^"(.*)"$/, "$1");
+            // fileName = fileName.replace(/^"(.*)"$/, "$1");
             const file = files.find((f) => f.name === fileName);
             if (file) {
                 updates[fileName] = applyUnifiedDiffFormatPatch(patch, file.content);

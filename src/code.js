@@ -74,6 +74,8 @@ Echo statement format:
 !echo <message>
 - <message>: The message to echo back to the user.
 
+If the user issues shell commands, pretend to be a file system containing the files in this chat window.
+
 Make sure to properly encode newlines and special characters in your response.`,
     };
 

@@ -4,8 +4,8 @@ const enquirer = require("enquirer");
 const fs = require("fs-extra");
 const fsp = require("fs").promises;
 const path = require("path");
-const blessed = require("blessed");
 const ora = require("ora");
+const Diff = require("diff");
 
 const { OpenAIApi, Configuration } = require('openai');
 const configuration = new Configuration({ apiKey: process.env.OPENAI_KEY });
@@ -13,6 +13,23 @@ const openai = new OpenAIApi(configuration);
 
 // Replace this with your actual API key
 openai.apiKey = process.env.OPENAI_KEY;
+
+
+function applyUnifiedDiff(diffString, targetFiles) {
+    const parsedDiff = Diff.parsePatch(diffString);
+    let result = {};
+
+    for (const fileDiff of parsedDiff) {
+        const targetFileContent = targetFiles[fileDiff.oldFileName];
+        if (!targetFileContent) continue;
+
+        const patchedContent = Diff.applyPatch(targetFileContent, fileDiff);
+        result[fileDiff.newFileName] = patchedContent;
+    }
+
+    return result;
+}
+
 
 // Load all files in ./src (excluding __test__)
 async function loadFiles(shellPath) {
@@ -59,16 +76,23 @@ Failure Signaling:
 !failure <message>
 - <message>: The message to echo back to the user.
 
-Shell statement format:
+Shell statement command:
 !bash <command>
 - <command>: The command to execute in the shell, enclosed in quotes. Use shelljs conventions for escaping characters.
 You will be shown the results of execution failures. If the command is successful you will receive its stdout output, and you will have another oppoertunity to act. Perform further action if needed, or output !success <statusmessage> to signal success. If the command fails, you will receive its error output and you will have another opportunity to act. If you cannot resolve the issue, output !failure to acknowledge the failure.
 
-Control statement format:
-!edit <file> <search_pattern> <replacement>
-- <file>: The target file name. You can create a new file by specifying a file name that does not exist.
-- <search_pattern>: The regex pattern to search for in the file, enclosed in quotes.
-- <replacement>: The replacement string, enclosed in quotes.
+File patch statement format:
+!patch <file> <unified_diff_patch>
+- <file>: The target file name.
+- <unified_diff_patch>: The unified diff patch to apply to the target file, enclosed in quotes.
+
+File edit statement format:
+!edit <file> <search_regex> <replace_string>
+- <file>: The target file name. You can create new files by specifying a file name that does not exist.
+- <search_regex>: The regex to search for in the target file.
+- <replace_string>: The string to replace the search regex with.
+
+PREFER patch statements over edit statements. If you cannot use a patch statement, use an edit statement. If you cannot use an edit statement, use a shell statement.
 
 Echo statement format:
 !echo <message>
@@ -79,7 +103,7 @@ Make sure to properly encode newlines and special characters in your response.`
 
     const messages = files.map((file) => ({
         role: "system",
-        content: `${file.name}:\n\n${file.content}`,
+        content: `${file.name}:\n${file.content}`,
     }));
 
     return [...messages, initialMessage, { role: "user", content: " **CRITICAL** RESPOND ONLY WITH SHELL, EDIT, ECHO, SUCCESS OR FAILURE STATEMENTS AFTER THIS POINT. THIS IS ESSENTIAL!!" }]
@@ -151,5 +175,6 @@ module.exports = {
     getUserInput,
     getCompletion,
     updateFile,
-    getUserConfirmation
+    getUserConfirmation,
+    applyUnifiedDiff
 };

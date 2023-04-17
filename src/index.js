@@ -51,12 +51,8 @@ const path = require("path");
         const successCommands = completion.matchAll(/!success\s+"([^"]+)"/g);
         const failureCommands = completion.matchAll(/!failure\s+"([^"]+)"/g);
         
-        for(const command of successCommands) {
-            requery = false;
-        }
-        for(const command of failureCommands) {
-            requery = false
-        }
+        for(const command of successCommands) { requery = false; }
+        for(const command of failureCommands) { requery = false }
         for(const command of echoCommands) {
             const [_, message] = command;
             console.log(message);
@@ -104,9 +100,7 @@ const path = require("path");
                 execution += 'error: ' + stderr + '\n';
                 requery = true;
                 break;
-            } else {
-                requery = false;
-            }
+            } else { requery = false; }
         }
         if(execution !== '') {
             conversation.push({ role: "system", content: execution });
@@ -122,6 +116,10 @@ const path = require("path");
         for (const command of failureCommands) {
             const [_, failureMessage] = command;
             console.log(failureMessage);
+        }
+
+        if(query !== '') {
+            break;
         }
     }
 })();

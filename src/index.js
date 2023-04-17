@@ -39,7 +39,19 @@ const path = require("path");
             if (userInput === '~' || userInput === '!exit'
             ) break;
             conversation.push({ role: "user", content: userInput });
-            // TODO - remove oldest messages if conversation is too long
+            // remove oldest messages if conversation is too long
+            const adjustConversation = (conversation) => {
+                const convoString = JSON.stringify(conversation);
+                if(convoString.length > 8192) {
+                    conversation = conversation.slice(1);
+                }
+                return conversation;
+            }
+            let convoString = JSON.stringify(conversation);
+            while(convoString.length > 8192) {
+                conversation = adjustConversation(conversation);
+                convoString = JSON.stringify(conversation);
+            }
         }
         const completion = await getCompletion(conversation);
 
@@ -52,7 +64,7 @@ const path = require("path");
         const failureCommands = completion.matchAll(/!failure\s+"([^"]+)"/g);
         
         for(const command of successCommands) { requery = false; }
-        for(const command of failureCommands) { requery = false }
+        for(const command of failureCommands) { requery = false; }
         for(const command of echoCommands) {
             const [_, message] = command;
             console.log(message);
@@ -100,7 +112,10 @@ const path = require("path");
                 execution += 'error: ' + stderr + '\n';
                 requery = true;
                 break;
-            } else { requery = false; }
+            } else { 
+                execution += stdout + '\n';
+                requery = true; 
+            }
         }
         if(execution !== '') {
             conversation.push({ role: "system", content: execution });

@@ -3,6 +3,7 @@ require("dotenv").config();
 const enquirer = require("enquirer");
 const fs = require("fs-extra");
 const path = require("path");
+const blessed = require("blessed");
 const ora = require("ora");
 
 const { OpenAIApi, Configuration } = require('openai');
@@ -66,7 +67,7 @@ Make sure to properly encode newlines and special characters in your response.`,
 
     const messages = files.map((file) => ({
         role: "system",
-        content: `The content of ${file.name}:\n${file.content}`,
+        content: `<!-- ${file.name} >:\n\n${file.content}`,
     }));
 
     // Add the initial message to the conversation

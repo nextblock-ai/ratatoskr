@@ -94,19 +94,26 @@ const path = require("path");
             }
         }
 
+        let execution = '';
         for (const command of bashCommands) {
             const [_, bashCommand] = command;
+            execution += bashCommand + '\n';
             const { stdout, stderr } = shell.exec(bashCommand);
             if (stderr) {
                 console.log(stderr);
-                conversation.push({ role: "system", content: stderr });
+                execution += 'error: ' + stderr + '\n';
                 requery = true;
+                break;
             } else {
-                console.log(stdout);
-                conversation.push({ role: "system", content: stdout });
+                execution += stdout + '\n';
                 requery = true;
             }
         }
+        if(execution !== '') {
+            conversation.push({ role: "system", content: execution });
+            if(requery) { continue; }
+        }
+        requery = false;
 
         for (const command of successCommands) {
             const [_, successMessage] = command;
@@ -119,3 +126,5 @@ const path = require("path");
         }
     }
 })();
+
+  // ...

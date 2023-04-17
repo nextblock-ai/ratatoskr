@@ -82,10 +82,7 @@ Make sure to properly encode newlines and special characters in your response.`
         content: `${file.name}:\n\n${file.content}`,
     }));
 
-    // Add the initial message to the conversation
-    messages.unshift(initialMessage);
-    messages.push({ role: "user", content: " **CRITICAL** RESPOND ONLY WITH SHELL, EDIT, ECHO, SUCCESS OR FAILURE STATEMENTS. THIS IS ESSENTIAL!!" });
-    return messages;
+    return [...messages, initialMessage, { role: "user", content: " **CRITICAL** RESPOND ONLY WITH SHELL, EDIT, ECHO, SUCCESS OR FAILURE STATEMENTS AFTER THIS POINT. THIS IS ESSENTIAL!!" }]
 }
 
 // Get user input
@@ -103,7 +100,7 @@ async function getCompletion(messages, requeryIncompletes = true) {
         model: 'gpt-4',
         messages,
         max_tokens: 2048,
-        temperature: 0.02,
+        temperature: 0.6,
     }
     let isJson = false, responseMessage = '';
     const _query = async (conversation, iter) => {

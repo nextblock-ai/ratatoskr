@@ -19,10 +19,15 @@ async function loadFiles(shellPath) {
     const cwd = process.cwd();
     const srcPath = path.join(cwd, shellPath);
     let files = await fs.readdir(srcPath);
+    // filter out folders
     files = files
         .filter((file) => !file.includes("__tests__"))
         .map(async (file) => {
-            const content = await fs.readFile(path.join(srcPath, file), "utf-8");
+            const fPath = path.join(srcPath, file);
+            if(fs.lstatSync(fPath).isDirectory()) {
+                return undefined;
+            }
+            const content = await fs.readFile(, "utf-8");
             if (content.includes('gpt-exclude: true')) {
                 console.log(`Excluding file ${file} from training data`)
                 return undefined;

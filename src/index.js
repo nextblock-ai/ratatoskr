@@ -105,7 +105,6 @@ const path = require("path");
                 requery = true;
                 break;
             } else {
-                execution += stdout + '\n';
                 requery = false;
             }
         }

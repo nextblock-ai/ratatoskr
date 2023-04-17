@@ -97,7 +97,8 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
 
         console.log("AI Response:", completion);
         // Process the edit commands
-        const editCommands = completion.matchAll(/!edit\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"/g); // !edit filename "search pattern" "replacement"
+
+        const editCommands = completion.matchAll(/!edit\s+"([^"]+)"\s+"([^"]+)"\s+"([^"]+)"/g); // !edit filename "search pattern" "replacement"
         const patchCommands = completion.matchAll(/!patch\s+(\S+)\s+"([^"]+)"/g); // !patch filename "patch"
         const echoCommands = completion.matchAll(/!echo\s+"([^"]+)"/g); // !echo "message"
         const bashCommands = completion.matchAll(/!bash\s+"([^"]+)"/g); // !bash "command"
@@ -114,10 +115,9 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
         const updates = {};
         for (const command of editCommands) {
             let [_, fileName, searchPattern, replacement] = command;
-            // strip doublequotes from file name
-            fileName = fileName.replace(/^"(.*)"$/, "$1");
             const file = files.find((f) => f.name === fileName);
             if (file) {
+                // Use the searchPattern directly to create the RegExp object
                 const regex = new RegExp(searchPattern, "g");
                 const newContent = file.content.replace(regex, replacement);
                 updates[fileName] = newContent;
@@ -141,10 +141,12 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
             console.log(`\nUpdated content for ${fileName}:\n${updates[fileName]}`);
             const confirmed = await getUserConfirmation();
             if (confirmed) {
-                const file = files.find((f) => fileName === '"' + f.name + '"' || f.name === fileName);
+                const file = files.find((f) => f.name === fileName);
                 file.content = updates[fileName];
                 const cwd = process.cwd();
                 const filePath = path.join(cwd, shellPath, fileName);
+                console.log(`Updating file: ${filePath}`);
+                console.log(`New content: ${updates[fileName]}`);
                 await updateFile(filePath, updates[fileName]);
                 console.log(`File ${filePath} updated successfully.`);
             } else {

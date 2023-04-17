@@ -155,6 +155,8 @@ async function getCompletion(messages, requeryIncompletes = true) {
 // Update the file content and save it
 async function updateFile(file, newContent) {
     const srcPath = path.join(file);
+    console.log(`Updating file: ${srcPath}`);
+    console.log(`New content: ${newContent}`);
     await fs.writeFile(srcPath, newContent, "utf-8");
 }
 

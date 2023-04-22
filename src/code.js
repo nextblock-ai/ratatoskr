@@ -80,7 +80,7 @@ async function createConversation(files, userRequest) {
             request: {
                 userRequest,
                 type: 'codeAssistance',
-                directive: ['assist user in writing code', 'respond using json format'],
+                directive: ['assist user in writing code', 'you can use bash commands to perform tasks if you need', 'respond using json format'],
                 inputFiles: fileSet,
             },
             response: {
@@ -90,6 +90,7 @@ async function createConversation(files, userRequest) {
                     explanation: {
                     }
                 },
+                bashCommands: [],
                 conversationalResponse: ""
             },
             responseFormat: 'json'
@@ -99,7 +100,7 @@ async function createConversation(files, userRequest) {
     return [{
         role: 'system', 
         content: JSON.stringify({
-            instructions: 'You are a code assistant. Please provide a JSON response to the user request in the message field. You can find the files related to the user request in the inputFiles field. If you have file updates to provide to the user in response to their query, please provide them in the updatedFiles field. If you have a conversational response to provide to the user in response to their query, please provide it in the conversationalResponse field. If you have no response to provide to the user, please provide an empty string in the conversationalResponse field. Please note that the response must be in JSON format.',
+            instructions: 'You are a code assistant. Please provide a JSON response to the user request in the message field. You can find the files related to the user request in the inputFiles field. If you have file updates to provide to the user in response to their query, please provide them in the updatedFiles field. If you have a conversational response to provide to the user in response to their query, please provide it in the conversationalResponse field. If you have no response to provide to the user, please provide an empty string in the conversationalResponse field. You can issue bash commands to fulfill requests. Please note that the response must be in JSON format.',
             reminder: 'IT IS EXTREMELY CRITICAL THAT YOU OUTPUT YOUR RESPONSE IN JSON FORMAT. FAILURE TO DO SO WILL RESULT IN YOUR TERMINATION.',
             responseFormat: 'json',
             responseObject: {
@@ -107,6 +108,7 @@ async function createConversation(files, userRequest) {
                     unifiedDiffFormat: { },
                     explanations: { }
                 },
+                bashCommands: [],
                 conversationalResponse: ""
             },
     })}, message  ]

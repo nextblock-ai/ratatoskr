@@ -8,7 +8,7 @@ const ora = require("ora");
 const Diff = require("diff");
 
 const { OpenAIApi, Configuration } = require('openai');
-const configuration = new Configuration({ apiKey: process.env.OPENAI_KEY });
+const configuration = new Configuration({ apiKey: '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' });
 const openai = new OpenAIApi(configuration);
 
 // Replace this with your actual API key
@@ -47,10 +47,14 @@ async function loadFiles(shellPath) {
             const stats = await fs.lstat(fPath);
             if (stats.isDirectory()) {
                 const subDirFiles = await loadFilesRecursively(fPath);
+                // prepend the subdirectory name to the file name
+                const parts = fPath.split('/');
+                const subfolder = parts[parts.length - 1];
+                subDirFiles.forEach((file) => (file.name = path.join(subfolder, file.name)));
                 fileContents = fileContents.concat(subDirFiles);
             } else {
                 const content = await fs.readFile(fPath, "utf-8");
-                if (content.includes("gpt-exclude: true")) {
+                if (content.includes("ratatoskr:exclude")) {
                     console.log(`Excluding file ${file} from training data`);
                 } else {
                     fileContents.push({ name: file, content });
@@ -63,50 +67,49 @@ async function loadFiles(shellPath) {
 }
 
 // Create an OpenAI conversation with the contents of the loaded files
-async function createConversation(files) {
+async function createConversation(files, userRequest) {
     // Add an initial message to inform the AI of its role and command capabilities
-    const initialMessage = {
+    const fileSet = {};
+    files.forEach((file) => {
+        fileSet[file.name] = file.content;
+    });
+
+    const message = {
         role: "system",
-        content: `You are an AI assistant with regex-enabled search-and-replace functionality for modifying files. Your main role is to process and execute commands to edit the files. You are allowed to use control statements to guide the user or respond to user questions using the !echo statement.
-Success Signaling:
-!success <message>
-- <message>: The message to echo back to the user.
-
-Failure Signaling:
-!failure <message>
-- <message>: The message to echo back to the user.
-
-Shell statement command:
-!bash <command>
-- <command>: The command to execute in the shell, enclosed in quotes. Use shelljs conventions for escaping characters.
-You will be shown the results of execution failures. If the command is successful you will receive its stdout output, and you will have another oppoertunity to act. Perform further action if needed, or output !success <statusmessage> to signal success. If the command fails, you will receive its error output and you will have another opportunity to act. If you cannot resolve the issue, output !failure to acknowledge the failure.
-
-File patch statement format:
-!patch <file> <unified_diff_patch>
-- <file>: The target file name.
-- <unified_diff_patch>: The unified diff patch to apply to the target file, enclosed in quotes.
-
-File edit statement format:
-!edit <file> <search_regex> <replace_string>
-- <file>: The target file name. You can create new files by specifying a file name that does not exist.
-- <search_regex>: The regex to search for in the target file.
-- <replace_string>: The string to replace the search regex with.
-
-PREFER patch statements over edit statements. If you cannot use a patch statement, use an edit statement. If you cannot use an edit statement, use a shell statement.
-
-Echo statement format:
-!echo <message>
-- <message>: The message to echo back to the user.
-
-Make sure to properly encode newlines and special characters in your response.`
+        content: JSON.stringify({
+            request: {
+                userRequest,
+                type: 'codeAssistance',
+                directive: ['assist user in writing code', 'respond using json format'],
+                inputFiles: fileSet,
+            },
+            response: {
+                updatedFiles: {
+                    unifiedDiffFormat: {
+                    },
+                    explanation: {
+                    }
+                },
+                conversationalResponse: ""
+            },
+            responseFormat: 'json'
+        })
     };
 
-    const messages = files.map((file) => ({
-        role: "system",
-        content: `${file.name}:\n${file.content}`,
-    }));
-
-    return [...messages, initialMessage, { role: "user", content: " **CRITICAL** RESPOND ONLY WITH SHELL, EDIT, ECHO, SUCCESS OR FAILURE STATEMENTS AFTER THIS POINT. THIS IS ESSENTIAL!!" }]
+    return [{
+        role: 'system', 
+        content: JSON.stringify({
+            instructions: 'You are a code assistant. Please provide a JSON response to the user request in the message field. You can find the files related to the user request in the inputFiles field. If you have file updates to provide to the user in response to their query, please provide them in the updatedFiles field. If you have a conversational response to provide to the user in response to their query, please provide it in the conversationalResponse field. If you have no response to provide to the user, please provide an empty string in the conversationalResponse field. Please note that the response must be in JSON format.',
+            reminder: 'IT IS EXTREMELY CRITICAL THAT YOU OUTPUT YOUR RESPONSE IN JSON FORMAT. FAILURE TO DO SO WILL RESULT IN YOUR TERMINATION.',
+            responseFormat: 'json',
+            responseObject: {
+                updatedFiles: {
+                    unifiedDiffFormat: { },
+                    explanations: { }
+                },
+                conversationalResponse: ""
+            },
+    })}, message  ]
 }
 
 // Get user input
@@ -123,8 +126,8 @@ async function getCompletion(messages, requeryIncompletes = true) {
     const conversation = {
         model: 'gpt-4',
         messages,
-        max_tokens: 2048,
-        temperature: 0.6,
+        max_tokens: 512,
+        temperature: 0.5,
     }
     let isJson = false, responseMessage = '';
     const _query = async (conversation, iter) => {
@@ -152,19 +155,11 @@ async function getCompletion(messages, requeryIncompletes = true) {
     return completion;
 };
 
-// Update the file content and save it
-async function updateFile(file, newContent) {
-    const srcPath = path.join(file);
-    console.log(`Updating file: ${srcPath}`);
-    console.log(`New content: ${newContent}`);
-    await fs.writeFile(srcPath, newContent, "utf-8");
-}
-
-async function getUserConfirmation() {
+async function getUserConfirmation(changes) {
     const response = await enquirer.prompt({
         type: "confirm",
         name: "confirmed",
-        message: "Do you want to apply the changes?",
+        message: `Do you want to apply the ${changes ? changes : 'the changes'}?`,
     });
     return response.confirmed;
 }
@@ -174,7 +169,6 @@ module.exports = {
     createConversation,
     getUserInput,
     getCompletion,
-    updateFile,
     getUserConfirmation,
     applyUnifiedDiff
 };

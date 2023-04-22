@@ -4,14 +4,15 @@ const {
     createConversation,
     getUserInput,
     getCompletion,
-    updateFile,
     getUserConfirmation,
     applyUnifiedDiff
 } = require("./code");
 const shell = require("shelljs");
 const path = require("path");
+const fs = require("fs");
+const { jsonrepair } = require("jsonrepair");
 
-function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
+function applyunifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
     const patchLines = unifiedDiffFormatPatch.split('\n');
     const fileLines = fileContent.split('\n');
     const newFileLines = [];
@@ -50,6 +51,11 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
     return newFileLines.join('\n');
 }
 
+function parseCommands(commands) {
+    //let result = jsonrepair(commands)
+    return JSON.parse( commands );
+}
+
 (async () => {
     // take a single path parameter as the value
     const shellPath = process.argv[2];
@@ -63,130 +69,81 @@ function applyUnifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
         console.log(`Loading files from ${shellPath}...`);
         files.forEach((file) => console.log(`Loaded file ${file.name}`))
     }
-    let conversation = await createConversation(files);
+    let messages = await createConversation(files, query);
+    // let totalBytes = JSON.stringify(messages).length;
+    // if (totalBytes > 8192) {
+    //     console.log(`WARNING: conversation is too long ${totalBytes} and will be truncated`)
+    // }
 
     // if query is passed from the command line, use it as the first user input
     let requery = false;
     if (query !== '') {
-        conversation.push({ role: "user", content: query });
+        messages = await createConversation(files, query);
         requery = true;
     }
-    while (true) {
 
+    async function completeAndProcess(messages) {
+        const completion = await getCompletion(messages);
+        let commands = parseCommands(completion);
+        if(commands.response) commands = commands.response;
+
+        let updatedFilePatches = commands.updatedFiles ? commands.updatedFiles : ''
+        let updatedFileExplanations = updatedFilePatches.explanations ? updatedFilePatches.explanations : ''
+        let updatedFileDiffs = updatedFilePatches.unifiedDiffFormat ? updatedFilePatches.unifiedDiffFormat : ''
+        let conversationalResponse = commands.conversationalResponse ? commands.conversationalResponse : ''
+        
+        if(conversationalResponse) console.log(conversationalResponse);
+        if(!updatedFilePatches && !conversationalResponse && !updatedFileExplanations && commands) {
+            console.log(commands);
+            return;
+        }
+
+        if(updatedFileDiffs && updatedFileExplanations) for(let i = 0; i < Object.keys(updatedFileDiffs).length; i++) {
+            let fileName = Object.keys(updatedFileDiffs)[i];
+            let fileContent = updatedFileDiffs[fileName]
+            const file = files.find((f) => f.name.endsWith(fileName));
+            if (file) {
+                const confirmed = await getUserConfirmation(explanation[fileName]);
+                if (!confirmed) { continue; }
+                const fpath = path.join(process.cwd(), shellPath, fileName);
+                const newContent = applyunifiedDiffFormatPatch(fileContent, file.content);
+                fs.writeFileSync(fpath, newContent, "utf-8");
+                file.content = newContent;
+            }
+        }
+        return ''
+    }
+
+    let timeout = null, autoInvoke = false;
+    function setAutoInvoke(state) {
+        if(state === true) {
+            autoInvoke = true;
+        } else {
+            clearTimeout(timeout);
+            autoInvoke = false;
+        }
+    }
+
+    let userInput = '';
+    while (true) {
         // only gather user input if we are not requerying
         if (!requery) {
-            const userInput = await getUserInput();
-            if (userInput === '~' || userInput === '!exit'
-            ) break;
-            conversation.push({ role: "user", content: userInput });
-            // remove oldest messages if conversation is too long
-            const adjustConversation = (conversation) => {
-                const convoString = JSON.stringify(conversation);
-                if (convoString.length > 8192) {
-                    conversation = conversation.slice(1);
-                }
-                return conversation;
-            }
-            let convoString = JSON.stringify(conversation);
-            while (convoString.length > 8192) {
-                conversation = adjustConversation(conversation);
-                convoString = JSON.stringify(conversation);
-            }
-        }
-        const completion = await getCompletion(conversation);
-
-        console.log("AI Response:", completion);
-        // Process the edit commands
-
-        const editCommands = completion.matchAll(/!edit\s+\"([^\"]+)\"\s+\"([^\"]+)\"\s+\"([^\"]+)\"/g); // !edit filename "search pattern" "replacement"
-        const patchCommands = completion.matchAll(/!patch\s+"([^"]+)"\s+"([^"]+)"/g); // !patch filename "patch"
-        const echoCommands = completion.matchAll(/!echo\s+"([^"]+)"/g); // !echo "message"
-        const bashCommands = completion.matchAll(/!bash\s+"([^"]+)"/g); // !bash "command"
-        const successCommands = completion.matchAll(/!success\s+"([^"]+)"/g); // !success "message"
-        const failureCommands = completion.matchAll(/!failure\s+"([^"]+)"/g); // !failure "message"
-
-        for (const command of successCommands) { requery = false; }
-        for (const command of failureCommands) { requery = false; }
-        for (const command of echoCommands) {
-            const [_, message] = command;
-            console.log(message);
-        }
-        // Group the updates by file name
-        const updates = {};
-        for (const command of editCommands) {
-            let [_, fileName, searchPattern, replacement] = command;
-            const file = files.find((f) => f.name === fileName);
-            if (file) {
-                // Use the searchPattern directly to create the RegExp object
-                const regex = new RegExp(searchPattern, "g");
-                const newContent = file.content.replace(regex, replacement);
-                updates[fileName] = newContent;
-            } else {
-                // create a new file
-                updates[fileName] = replacement;
-            }
-        }
-        for (const command of patchCommands) {
-            let [_, fileName, patch] = command;
-            // strip doublequotes from file name
-            // fileName = fileName.replace(/^"(.*)"$/, "$1");
-            const file = files.find((f) => f.name === fileName);
-            if (file) {
-                updates[fileName] = applyUnifiedDiffFormatPatch(patch, file.content);
+            if(!autoInvoke) {
+                userInput = await getUserInput();
+                if (userInput === '~' || userInput === '!exit'
+                ) break;
+                messages = await createConversation(files, userInput);
             }
         }
 
-        // Show the updates to the user and wait for confirmation
-        for (let fileName of Object.keys(updates).sort()) {
-            console.log(`\nUpdated content for ${fileName}:\n${updates[fileName]}`);
-            const confirmed = await getUserConfirmation();
-            if (confirmed) {
-                const file = files.find((f) => f.name === fileName);
-                file.content = updates[fileName];
-                const cwd = process.cwd();
-                const filePath = path.join(cwd, shellPath, fileName);
-                console.log(`Updating file: ${filePath}`);
-                console.log(`New content: ${updates[fileName]}`);
-                await updateFile(filePath, updates[fileName]);
-                console.log(`File ${filePath} updated successfully.`);
-            } else {
-                console.log(`Changes to ${fileName} were not applied.`);
-            }
-        }
-
-        let execution = '';
-        for (const command of bashCommands) {
-            const [_, bashCommand] = command;
-            execution += bashCommand + '\n';
-            const { stdout, stderr } = shell.exec(bashCommand);
-            if (stderr) {
-                console.log(stderr);
-                execution += 'error: ' + stderr + '\n';
-                requery = true;
-                break;
-            } else {
-                execution += stdout + '\n';
-                requery = true;
-            }
-        }
-        if (execution !== '') {
-            conversation.push({ role: "system", content: execution });
-            if (requery) { continue; }
-        }
+        // perform the completion and processing
+        const execution = await completeAndProcess(messages);
         requery = false;
-
-        for (const command of successCommands) {
-            const [_, successMessage] = command;
-            console.log(successMessage);
-        }
-
-        for (const command of failureCommands) {
-            const [_, failureMessage] = command;
-            console.log(failureMessage);
-        }
-
-        if (query !== '') {
-            break;
+        if (query !== '') { break; }
+        if(autoInvoke) {
+            timeout = setTimeout(() => {
+                completeAndProcess(messages);
+            }, 1000);
         }
     }
 })();

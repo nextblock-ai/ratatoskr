@@ -65,7 +65,7 @@ function getCodeAssistanceResponse(conversationalResponse, udfPatches, patchExpl
     }
 }
 
-function createLikelyFileDependenciesConversation() {
+function createLikelyFileDependenciesConversation(fileContent, filelist) {
     return [{
         role: "system",
         content: JSON.stringify({
@@ -134,31 +134,6 @@ export async function getCompletion(prompt, files) {
 // Create an OpenAI conversation with the contents of the loaded files
 function createConversation(files, userRequest) {
     return [
-        // getCodeAssistanceRequestMessage(
-        //     "Add a new file called helloWorld.js and print 'Hello World!' to the console.",
-        //     {}
-        // ),
-        // getCodeAssistanceResponseMessage(
-        //     "I have added a new file called helloWorld.js and printed 'Hello World!' to the console.",
-        //     { "helloWorld.js": "@@ -0,0 +1 @@\n+console.log('Hello World!');" },
-        //     { "helloWorld.js": "I have added a new file called helloWorld.js and printed 'Hello World!' to the console." },
-        //     [
-        //         "git add .",
-        //         "git commit -m 'Added helloWorld.js'",
-        //     ]
-        // ),
-        // getCodeAssistanceRequestMessage(
-        //     "Update helloWorld.js and print 'Hello Babe!' to the console.",
-        //     {
-        //         "helloWorld.js": "console.log('Hello World!');"
-        //     }
-        // ),
-        // getCodeAssistanceResponseMessage(
-        //     "I have updated helloWorld.js and printed 'Hello Babe!' to the console.",
-        //     { "helloWorld.js": "@@ -1 +1 @@\n-console.log('Hello World!');\n+console.log('Hello Babe!');" },
-        //     { "helloWorld.js": "I have updated helloWorld.js and printed 'Hello Babe!' to the console." },
-        //     []
-        // ),
         getSystemPreambleMessage(),
         getCodeAssistanceRequestMessage(
             userRequest,
@@ -167,8 +142,25 @@ function createConversation(files, userRequest) {
     ];
 }
 
+// given a list of files and some file content, returns the likely file dependencies
+async function queryDependencies(shellPath, query) {
+    console.log(`Loading files from ${shellPath}...`);
+    files = await loadFiles(shellPath);
+    files.forEach((file) => console.log(`Loaded file ${file.name}`))
+    let messages = createLikelyFileDependenciesConversation(query, Object.keys(files));
+    const completionResult = JSON.parse( await getCompletion(messages));
+    return completionResult.response.likelyFileDependencies;
+}
 
-
+// given a list of files and a query, returns the completion
+async function queryCodebase(query, files) {
+    if(!files) console.log(`Loading files from ${shellPath}...`);
+    files = files || await loadFiles(shellPath);
+    files.forEach((file) => console.log(`Loaded file ${file.name}`))
+    let messages = createConversation(files, query);
+    const completionResult = getCompletion(messages);
+    return completionResult;
+}
 
 // Get user input
 async function getUserInput() {
@@ -204,11 +196,11 @@ const shell = require("shelljs");
         console.log(`Loading files from ${shellPath}...`);
         files.forEach((file) => console.log(`Loaded file ${file.name}`))
     }
-    let messages = await createConversation(files, query);
+    let messages = createConversation(files, query);
 
     let requery = false;
     if (query !== '') {
-        messages = await createConversation(files, query);
+        messages = createConversation(files, query);
         requery = true;
     }
 
@@ -269,7 +261,41 @@ const shell = require("shelljs");
                 userInput = await getUserInput();
                 if (userInput === '~' || userInput === '!exit'
                 ) break;
-                messages = await createConversation(files, userInput);
+                
+                files = await loadFiles(shellPath);
+                let loadedFiles = {};
+                // get a list of all the file names in the files list
+                const filenames = files.map((file) => {
+                    const ppart = file.name.split('.')[0]
+                    const parts = ppart.split('/')
+                    return parts[parts.length - 1]
+                });
+                
+                // check to see if a file name is contained in the user input
+                let matches = filenames.filter((filename) => userInput.includes(filename));
+                // remove duplicates
+                matches = [...new Set(matches)];
+                
+                for(let i = 0; i < matches.length; i++) {
+                    const match = matches[i];
+                    console.log(`Loading dependencies for ${match}...`);
+                    const theFile = files.find((file) => file.name.includes(match))
+                    loadedFiles[theFile.name] = theFile.content;
+                    const fileDeps = await queryDependencies(
+                        shellPath,
+                        theFile.content,
+                    );
+                    // go through the files and add the dependencies to the loadedFiles object
+                    for(let j = 0; j < fileDeps.length; j++) {
+                        const fileDep = fileDeps[j];
+                        loadedFiles[fileDep] = true;
+                    }
+
+                }
+                // if the user input matches a filename, then load the file
+                // if the user input matches a directory, then load all the files in the directory
+                loadedFiles = Object.values(loadedFiles).length > 0 ? loadedFiles : files;
+                messages = createConversation(loadedFiles, userInput);
             }
         }
 

@@ -1,5 +1,6 @@
 const blessed = require("blessed");
 const contrib = require("blessed-contrib");
+const { queryCodebase }
 
 // Create a screen object
 const screen = blessed.screen({
@@ -126,3 +127,80 @@ module.exports = {
     inputBox,
     statusBar
 };
+
+screen.key(["escape", "q", "C-c"], function(ch, key) {
+    return process.exit(0);
+});
+
+screen.render();
+
+export class RatatoskrInterface {
+    screen;
+    fileList
+    constructor() {
+        this.screen = screen
+        this.fileList = fileList
+        this.fileContent = fileContent
+        this.outputLog = outputLog
+        this.inputBox = inputBox
+        this.statusBar = statusBar
+
+        this.inputBox.on("submit", (value) => {
+            this.inputBox.clearValue();
+            this.render();
+        })
+
+        this.fileList.on("select", (item) => {
+            this.fileSelected(item);
+        })
+
+        this.fileList.on("keypress", (ch, key) => {
+            if (key.name === "enter") {
+                this.fileSelected(this.fileList.getItem(this.fileList.selected));
+            }
+        })
+
+        this.fileList.on("mouse", (data) => {
+            if (data.action === "click") {
+                this.fileSelected(this.fileList.getItem(this.fileList.selected));
+            }
+        })
+    }
+
+    submitQuery(query) {
+
+    }
+
+    render() {
+        this.screen.render();
+    }
+
+    updateFileList(files) {
+        this.fileList.setItems(files);
+        this.render();
+    }
+
+    fileSelected(file) {
+        this.fileContent.setContent(file.content);
+        this.render();
+    }
+
+    updateOutputLog(output) {
+        this.outputLog.setContent(output);
+        this.render();
+    }
+
+    updateStatusBar(status) {
+        this.statusBar.setContent(status);
+        this.render();
+    }
+
+    updateInputBox(input) {
+        this.inputBox.setContent(input);
+        this.render();
+    }
+
+    inputBoxChanged(callback) {
+        this.inputBox.on("submit", callback);
+    }
+}

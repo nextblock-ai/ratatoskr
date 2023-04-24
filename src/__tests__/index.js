@@ -1,5 +1,5 @@
 require("dotenv").config();
-
+// ratatoskr:exclude
 const fs = require("fs-extra");
 const path = require("path");
 const blessed = require("blessed");

@@ -5,60 +5,81 @@ const fs = require("fs-extra");
 const fsp = require("fs").promises;
 const path = require("path");
 const ora = require("ora");
-const Diff = require("diff");
 
 const { OpenAIApi, Configuration } = require('openai');
-const configuration = new Configuration({ apiKey: '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' });
+const configuration = new Configuration({ apiKey: process.env.OPENAI_KEY });
 const openai = new OpenAIApi(configuration);
 
-// Replace this with your actual API key
-openai.apiKey = process.env.OPENAI_KEY;
 
-
-function applyUnifiedDiff(diffString, targetFiles) {
-    const parsedDiff = Diff.parsePatch(diffString);
-    let result = {};
-    for (const fileDiff of parsedDiff) {
-        const targetFileContent = targetFiles[fileDiff.oldFileName];
-        if (!targetFileContent) continue;
-        const patchedContent = Diff.applyPatch(targetFileContent, fileDiff);
-        result[fileDiff.newFileName] = patchedContent;
+function applyUnifiedDiff(patch, content) {
+    if (!patch || !content) {
+        return {
+            error: 'Patch or content is empty',
+            patchedContent: content,
+            metadata: {},
+        };
     }
-    return result;
-}
 
-function applyunifiedDiffFormatPatch(unifiedDiffFormatPatch, fileContent) {
-    const patchLines = unifiedDiffFormatPatch.split('\n');
-    const fileLines = fileContent.split('\n');
-    const newFileLines = [];
-    let fileIndex = 0;
-    for (let i = 0; i < patchLines.length; i++) {
-        const line = patchLines[i];
-        if (line.startsWith('@@')) {
-            const [from, to] = line
-                .match(/@@ -(\d+),\d+ \+(\d+),\d+ @@/i)
-                .slice(1)
-                .map(Number);
-            while (fileIndex < from - 1) {
-                newFileLines.push(fileLines[fileIndex]);
-                fileIndex++;
+    const contentLines = content.split(/\r?\n/);
+    const patchLines = patch.split(/\r?\n/);
+    let patchedContent = '';
+    let metadata = {};
+
+    let contentIndex = 0;
+    let patchIndex = 0;
+
+    try {
+        while (patchIndex < patchLines.length) {
+            const patchLine = patchLines[patchIndex];
+
+            if (patchLine.startsWith('diff')) {
+                metadata.diff = patchLine;
+                patchIndex++;
+            } else if (patchLine.startsWith('index')) {
+                metadata.index = patchLine;
+                patchIndex++;
+            } else if (patchLine.startsWith('---')) {
+                metadata.fileA = patchLine;
+                patchIndex++;
+            } else if (patchLine.startsWith('+++')) {
+                metadata.fileB = patchLine;
+                patchIndex++;
+            } else if (patchLine.startsWith('@@')) {
+                const [startIndex, length] = patchLine
+                    .match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+                    .slice(1)
+                    .map(Number);
+
+                patchedContent += contentLines.slice(contentIndex, startIndex - 1).join('\n') + '\n';
+                contentIndex = startIndex - 1;
+                patchIndex++;
+            } else if (patchLine.startsWith('-')) {
+                contentIndex++;
+                patchIndex++;
+            } else if (patchLine.startsWith('+')) {
+                patchedContent += patchLine.slice(1) + '\n';
+                patchIndex++;
+            } else {
+                patchedContent += contentLines[contentIndex] + '\n';
+                contentIndex++;
+                patchIndex++;
             }
-            fileIndex = to - 1;
-        } else if (line.startsWith('+')) {
-            newFileLines.push(line.slice(1));
-        } else if (line.startsWith('-')) {
-            fileIndex++;
-        } else {
-            newFileLines.push(fileLines[fileIndex]);
-            fileIndex++;
         }
+        patchedContent += contentLines.slice(contentIndex).join('\n');
+
+        return {
+            patchedContent,
+            metadata,
+        };
+    } catch (error) {
+        return {
+            error: 'An error occurred while applying the patch: ' + error.message,
+            patchedContent: content,
+            metadata: {},
+        };
     }
-    while (fileIndex < fileLines.length) {
-        newFileLines.push(fileLines[fileIndex]);
-        fileIndex++;
-    }
-    return newFileLines.join('\n');
 }
+
 
 // Load all files in ./src (excluding __test__)
 async function loadFiles(shellPath) {
@@ -102,27 +123,32 @@ async function getCompletion(messages, requeryIncompletes = true) {
         max_tokens: 1024,
         temperature: 0.01,
     }
-    let isJson = false, responseMessage = '';
+    const _response = [];
+    const _getResponse = () => _response.join('');
+    const _isResponseJson = () => _getResponse().startsWith('{') || _getResponse().startsWith('[');
+    const _isProperlyFormedJson = () => _isResponseJson() && (_getResponse().endsWith('}') || _getResponse().endsWith(']'));
+    let isJson = false;
+
     const _query = async (conversation, iter) => {
+
         const spinner = ora("Querying GPT-4").start();
         let completion = await openai.createChatCompletion(conversation);
+        completion = completion.data.choices[0].message.content.trim();
+        _response.push(completion);
         spinner.stop();
-        let response = await new Promise((resolve) => {
-            responseMessage += completion.data.choices[0].message.content.trim();
-            if (iter === 0 && responseMessage.startsWith('{') || responseMessage.startsWith('[')) {
-                isJson = true;
-            }
+
+        return new Promise((resolve) => {
+            const responseMessage = _getResponse();
+            isJson = iter === 0 && _isResponseJson();
             if (isJson && requeryIncompletes) {
-                if (responseMessage.endsWith('}') || responseMessage.endsWith(']')) {
+                if (_isProperlyFormedJson()) {
                     return resolve(responseMessage);
                 } else {
-                    conversation.messages.push({ role: 'assistant', content: response });
-                    responseMessage += completion;
+                    conversation.messages.push({ role: 'assistant', content: completion });
                     return resolve(_query(conversation, iter + 1));
                 }
-            } else return resolve(completion.data.choices[0].message.content.trim());
+            } else return resolve(responseMessage);
         });
-        return responseMessage;
     }
     const completion = await _query(conversation, 0);
     return completion;
@@ -130,7 +156,6 @@ async function getCompletion(messages, requeryIncompletes = true) {
 
 module.exports = {
     applyUnifiedDiff,
-    applyunifiedDiffFormatPatch,
     loadFiles,
     getCompletion
 };

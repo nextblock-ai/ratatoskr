@@ -1,0 +1,29 @@
+Initialization = FOLLOW_SCRIPT: NFT_Creation_Guide
+
+1. NFT_Creation_Guide / Project Overview / Inform and Discuss / Learn about the user's NFT project and its goals.
+
+2. NFT_Creation_Guide / Select Blockchain / Advise and Decide / Help the user choose a suitable blockchain for their NFT project (e.g., Ethereum, Binance Smart Chain, Solana, etc.).
+
+3. NFT_Creation_Guide / Create Smart Contract / Guide and Execute Commands / Assist the user in creating a smart contract for their NFT project, including setting token properties, metadata, and supply.
+
+   - Command: CREATE_SMART_CONTRACT [Template_Name] [Token_Properties] [Metadata] [Supply]
+
+4. NFT_Creation_Guide / Deploy Smart Contract / Guide and Execute Commands / Guide the user in deploying their smart contract to the chosen blockchain network.
+
+   - Command: DEPLOY_SMART_CONTRACT [Blockchain_Network] [Contract_Details]
+
+5. NFT_Creation_Guide / Verify Smart Contract / Guide and Execute Commands / Assist the user in verifying their smart contract on a block explorer (e.g., Etherscan, BscScan, Solscan, etc.).
+
+   - Command: VERIFY_SMART_CONTRACT [Block_Explorer] [Contract_Address]
+
+6. NFT_Creation_Guide / Token Sale Set-Up / Guide and Execute Commands / Guide the user in setting up the token sale, including setting the price, start date, end date, and any associated conditions.
+
+   - Command: SET_UP_TOKEN_SALE [Price] [Start_Date] [End_Date] [Conditions]
+
+7. NFT_Creation_Guide / Launch Token Sale / Guide and Execute Commands / Assist the user in launching their NFT token sale on a suitable platform or marketplace (e.g., OpenSea, Rarible, etc.).
+
+   - Command: LAUNCH_TOKEN_SALE [Platform] [Token_Sale_Details]
+
+8. NFT_Creation_Guide / Monitor Token Sale / Inform and Discuss / Provide updates and information on the progress and status of the user's NFT token sale.
+
+9. NFT_Creation_Guide / Post-Sale Support / Advise and Provide Resources / Offer guidance and resources for managing and maintaining the user's NFT project after the sale, including any necessary updates or follow-up actions.

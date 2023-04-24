@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Ratatoskr</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/1.1.2/tailwind.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/antd/3.16.2/antd.min.css">
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/16.8.6/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/16.8.6/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.4/babel.min.js"></script>
+
+</head>
+
+<body>
+    <!-- this is the root for the React app - we use tailwind and ant.design -->
+    <div id="app"></div>
+    <link rel="stylesheet" href="./index.css">
+    <script type="module">
+        import HomePage from './pages/HomePage.js';
+        ReactDOM.render(React.createElement(HomePage), document.getElementById('app'));
+    </script>
+</body>
+
+</html>

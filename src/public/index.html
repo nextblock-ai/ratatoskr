@@ -354,7 +354,8 @@
             window.editors = editors;
         });
 
-        const speechRecognition = window.speechRecognition || window.webkitSpeechRecognition;
+        if(window) {
+            const speechRecognition = window.speechRecognition || window.webkitSpeechRecognition;
         function listen() {
             var recognition = new speechRecognition();
             var hailed = false,
@@ -432,6 +433,7 @@
                 }
             };
             recognition.start();
+        }
         }
         listen();
     </script>

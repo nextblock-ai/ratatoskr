@@ -5,7 +5,7 @@ const {
     updateFile,
     processCommand,
 } = require("../code");
-
+// ratatoskr:exclude
 // Mock the fs and path modules
 jest.mock("fs-extra");
 jest.mock("path");

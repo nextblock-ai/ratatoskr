@@ -61,8 +61,11 @@ const HomePage = () => {
   const handleContentChange = (value: string) => {};
   const handleCommandChange = async (value: string) => {
     // if the command ends with a newline, then execute it
-    if (value.endsWith("\n")) {
+    const parts = value.split("\n");
+    const lastpart = parts[parts.length - 1].trim();
+    if (lastpart.length === 0) {
       setCommandBusy(true)
+      console.log('querying', value)
       const md = await axios.post("/api/command", { command: value });
       if (md.data) {
         setCommandBusy(false)
@@ -146,6 +149,7 @@ const HomePage = () => {
                     <EditorComponent
                     className="full-size"
                     value={commentary || ''}
+                    onChange={handleCommandChange}
                     options={{
                         autoSize: true,
                         toolbar: false,

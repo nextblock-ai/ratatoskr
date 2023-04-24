@@ -1,7 +1,9 @@
 import "dotenv/config";
 
+import * as jsonConfig from "../config.json";
+
 import { OpenAIApi, Configuration } from "openai";
-const configuration = new Configuration({ apiKey: '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' });
+const configuration = new Configuration({ apiKey: jsonConfig.openai.apiKey });
 const openai = new OpenAIApi(configuration);
 
 export async function getCompletion(messages: any, options = {

@@ -1,6 +1,5 @@
 const blessed = require("blessed");
 const contrib = require("blessed-contrib");
-const { queryCodebase }
 
 // Create a screen object
 const screen = blessed.screen({

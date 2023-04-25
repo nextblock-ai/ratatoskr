@@ -129,14 +129,14 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
         updatedFileDiffs: {},
         conversationalResponse: 'I need to see the content of the files \'gpt.tsx\' and \'util.tsx\' to fix the bug',
     };
-    const instructions = (ur: any, rd: any) => `You return a JSON object indicating whether or not, given the following user request:\n\n\"${ur}\"\n\nand the following response data:\n\n${JSON.stringify(rd)}\n\nadditional information is required to complete the user request\n\nIF YOU DO NOT RESPOND USING A JSON FORMAT, YOU WILL BE TERMINATED:`;
+    const instructions = (ur: any, rd: any) => `You return a JSON object indicating whether or not the given task is complete. Given the following task:\n\n\"${ur}\"\n\nand the following processing data:\n\n${JSON.stringify(rd)}\n\ndetermine whether or not the task is complete, and also determine what additional information is required to complete the user request\n\nIF YOU DO NOT RESPOND USING A JSON FORMAT, YOU WILL BE TERMINATED:`;
     return [{
         role: "system",
         content: JSON.stringify({
             instructions: instructions(sampleRequest, sampleData),
             responseFormat: {
                 requiredFormat: 'json',
-                additionalInformationRequired: false,
+                isComplete: false,
                 additionalFiles: ''
             }
         })
@@ -151,7 +151,7 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
         role: "assistant",
         content: JSON.stringify({
             response: {
-                additionalInformationRequired: true,
+                isComplete: true,
                 additionalFiles: 'src/gpt.tsx, src/util.tsx',
             }
         })
@@ -162,6 +162,63 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
                 instructions: instructions(userRequest, responseData),
             },
             responseFormat: 'json',
+        })
+    }]
+}
+
+function createDecomposeConversation(responseData: any, userRequest: any) {
+
+    const sampleData = {
+        userRequest: "There's a bug in our app. When a user clicks on the 'Submit' button, the form data is not being saved, and an error message is displayed in the console. The bug is caused by incorrect handling of form data in the main component and a missing import statement in the utility file.",
+        inputFiles: {
+            "mainComponent.tsx": `import React, { useState } from 'react';\nimport { saveFormData } from './utils';\n\nconst MainForm = () => {\n  const [formData, setFormData] = useState({});\n\n  const handleSubmit = () => {\n    // Incorrect form data handling logic\n  };\n\n  return (\n    <div>\n      {/* form elements */}\n      <button onClick={handleSubmit}>Submit</button>\n    </div>\n  );\n};`,
+            "utils.ts": `// Missing import statement\n\nexport const saveFormData = (data) => {\n  // Save form data logic\n};`
+        },
+    };
+    const sampleResposne = {
+        decompositionSteps: [
+            "Locate the 'Submit' button in the main component and identify the function handling the button click",
+            "Review the form data handling logic in the corresponding function",
+            "Correct the form data handling logic to properly save the form data",
+            "Locate the utility file with the missing import statement",
+            "Identify the required import statement and add it to the utility file",
+            "Test the app by filling out the form and clicking the 'Submit' button",
+            "Verify that the form data is saved correctly and the error message is no longer displayed in the console"
+        ],
+        requiredFormat: 'json',
+    }
+    const instructions = (ur: any) => `You return a JSON object containing an array of the specific steps required to fulfill the request. Each step must output a tangible work-product either directly needed for the next step, or must output some code.\n\n\"${ur}\"\n\nReturn a JSON object formatted accotring to the provided response format. IF YOU DO NOT RESPOND USING A JSON FORMAT, YOU WILL BE TERMINATED:`;
+    return [{
+        role: "system",
+        content: JSON.stringify({
+            instructions: instructions(sampleData.userRequest),
+            responseFormat: {
+                requiredFormat: 'json',
+                decompositionSteps: []
+            }
+        })
+    }, {
+        role: "user",
+        content: JSON.stringify({
+            request: {
+                ...sampleData,
+                instructions: instructions(sampleData.userRequest),
+            }
+        })
+    }, {
+        role: "assistant",
+        content: JSON.stringify({
+            response: {
+                ...sampleResposne
+            }
+        })
+    },{
+        role: "user",
+        content: JSON.stringify({
+            request: {
+                ...sampleData,
+                instructions: instructions(sampleData.userRequest),
+            }
         })
     }]
 }
@@ -197,4 +254,11 @@ export async function queryIsAdditionalInformationRequired(userInput: any, aiRes
     let messages = createAdditionalInformationRequiredConversation(aiResponse, userInput);
     const completionResult = JSON.parse( await getCompletion(messages));
     return completionResult.response;
+}
+
+export async function queryDecompose(shellPath: any,  query: any) {
+    let files = await loadFiles(shellPath);
+    let messages = createDecomposeConversation(files, query);
+    const result =  JSON.parse(await getCompletion(messages));
+    return result.response;
 }

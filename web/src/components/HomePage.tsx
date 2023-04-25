@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import axios from "axios";
 import 'easymde/dist/easymde.min.css';
 import ScriptRunner from "./ScriptRunner";
+import LocationBar from "./LocationBar";
 
 const EditorComponent = dynamic(() => import("react-simplemde-editor"), {
     ssr: false,
@@ -32,7 +33,8 @@ const HomePage = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({});
   const [commandBusy, setCommandBusy] = useState(true);
-  const [ isScript, setIsScript ] = useState(false);
+  const [isScript, setIsScript] = useState(false);
+  const [path, setPath] = useState("/");
 
   const findTreeData = (name: string, treeData: any) => {
     for (let i = 0; i < treeData.length; i++) {
@@ -53,6 +55,8 @@ const HomePage = () => {
     async function fetchData() {
         const res = await axios.get("/api/tree");
         setTreeData(res.data.tree);
+        const cwd = await axios.get("/api/cwd");
+        setPath(cwd.data.cwd);
     }
     fetchData();
   }, []);
@@ -89,6 +93,7 @@ const HomePage = () => {
     <div style={{ display: "flex", flexDirection: "row", height: "100%" }}>
     <Split horizontal minPrimarySize="80%">
         <div style={{ flexGrow: 1, height: '100%' }}>
+            <LocationBar path={path} onPathChanged={setPath} />
             <div style={{ flexGrow: 1, height: '100%' }}>
             <ReviewAndApproveModal
                 visible={modalVisible}

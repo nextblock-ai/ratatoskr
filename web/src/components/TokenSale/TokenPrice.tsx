@@ -5,7 +5,7 @@ interface TokenPriceProps {
 }
 
 const TokenPrice: React.FC<TokenPriceProps> = ({ price }) => {
-  return <p>Price: {price}</p>;
+  return (<p className="text-lg text-gray-800 mt-2">Price: {price}</p>)
 };
 
 export default TokenPrice;

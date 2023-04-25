@@ -9,13 +9,13 @@ const openai = new OpenAIApi(configuration);
 export async function getCompletion(messages: any, options = {
     model: 'gpt-4',
     max_tokens: 1024,
-    temperature: 0.01,
+    temperature: 0.6,
 }, requeryIncompletes = true): Promise<any> {
     const conversation = {
         model: 'gpt-4',
         messages,
         max_tokens: 1024,
-        temperature: 0.01,
+        temperature: 0.6,
     }
     const _response: any[] = [];
     const _getResponse = () => _response.join('');

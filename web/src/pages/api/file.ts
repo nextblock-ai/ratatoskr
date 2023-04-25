@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
+import * as config from '../../../config.json';
 
 function buildTree(rootPath: string): any[] {
   const filesAndFolders = fs.readdirSync(rootPath);
@@ -28,7 +29,7 @@ function buildTree(rootPath: string): any[] {
 export default function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   // get the request method
   const method = req.method;
-  const cwd = process.cwd();
+  const cwd = config.path;
 
   if (method === 'GET') {
     let loc = req.query.path || ''

@@ -5,7 +5,7 @@ interface TokenImageProps {
 }
 
 const TokenImage: React.FC<TokenImageProps> = ({ imageUrl }) => {
-  return <img src={imageUrl} alt="Token" />;
+    return <img src={imageUrl} alt="Token" />;
 };
 
 export default TokenImage;

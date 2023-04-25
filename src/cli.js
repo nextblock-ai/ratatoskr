@@ -126,12 +126,12 @@ const {
         }
 
         // perform the completion and processing
-        const execution = await completeAndProcess(messages);
+        const execution = await commandLoop(messages);
         requery = false;
         if (query !== '') { break; }
         if (autoInvoke) {
             timeout = setTimeout(() => {
-                completeAndProcess(messages);
+                commandLoop(messages);
             }, 1000);
         }
     }

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
+import * as config from '../../../config.json';
 
 type Data = {
   tree: any[];
@@ -33,7 +34,7 @@ function buildTree(rootPath: string): any[] {
 }
 
 export default function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
-  const cwd = process.cwd();
+  const cwd = config.path;
   const tree = buildTree(cwd);
 
   res.status(200).json({ tree });

@@ -1,8 +1,8 @@
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import HomePage from '@/components/TokenSale/TokenSalePage'
+import dynamic from 'next/dynamic'
 
-const inter = Inter({ subsets: ['latin'] })
+const TokenSalePage = dynamic(() => import("@/components/TokenSale/TokenSalePage"), {
+  ssr: false,
+});
 
 export default function Home() {
   return (

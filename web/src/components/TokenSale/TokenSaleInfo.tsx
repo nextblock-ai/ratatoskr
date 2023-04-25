@@ -6,29 +6,29 @@ import TokenImage from './TokenImage';
 import TokenPrice from './TokenPrice';
 
 interface TokenSaleInfoProps {
-  name: string;
-  description: string;
-  details: string;
-  imageUrl: string;
-  price: number;
+    name: string;
+    description: string;
+    details: string;
+    imageUrl: string;
+    price: number;
 }
 
 const TokenSaleInfo: React.FC<TokenSaleInfoProps> = ({
-  name,
-  description,
-  details,
-  imageUrl,
-  price,
+    name,
+    description,
+    details,
+    imageUrl,
+    price,
 }) => {
-  return (
-    <div>
-      <TokenName name={name} />
-      <TokenDescription description={description} />
-      <TokenDetails details={details} />
-      <TokenImage imageUrl={imageUrl} />
-      <TokenPrice price={price} />
-    </div>
-  );
+    return (
+        <div>
+            <TokenName name={name} />
+            <TokenDescription description={description} />
+            <TokenImage imageUrl={imageUrl} />
+            <TokenDetails details={details} />
+            <TokenPrice price={price} />
+        </div>
+    );
 };
 
 export default TokenSaleInfo;

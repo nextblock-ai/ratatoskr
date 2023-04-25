@@ -51,6 +51,16 @@ const HomePage = () => {
     return null;
   }
 
+  const self = this;
+  function debounce(func:any, wait:any) {
+    let timeout: any;
+    return  (...args: any[]) => {
+      const context = (self as any);
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(context, args), wait);
+    };
+  }
+
   useEffect(() => {
     async function fetchData() {
         const res = await axios.get("/api/tree");
@@ -61,34 +71,48 @@ const HomePage = () => {
     fetchData();
   }, []);
 
+  async function performCommand(value: string) {
+    setCommandBusy(true);
+    setCommentary("Command: " + value);
+    console.log("querying", value);
+    const source = new EventSource("/api/stream-command?command=" + encodeURIComponent(value));
+  
+    source.onopen = (event) => {
+      console.log("Connection opened:", event);
+    };
+  
+    source.onmessage = (event) => {
+      const d = JSON.parse(event.data);
+      setCommentary(d.data + "\n\n" + commentary);
+    };
+  
+    source.onerror = (event) => {
+      console.log("Connection error:", event);
+      source.close(); // Close the EventSource when an error occurs
+    };
+  
+    return () => {
+      source.close(); // Close the EventSource when the component is unmounted
+    };
+  }
 
-  const handleContentChange = (value: string) => {};
+  const debouncedPerformCommand = debounce(performCommand, 300); 
+  
+  const handleContentChange = (value: string) => {
+    // 
+  };
   const handleCommandChange = async (value: string) => {
     // if the command ends with a newline, then execute it
     const parts = value.split("\n");
     const lastpart = parts[parts.length - 1].trim();
     if (lastpart.length === 0) {
-      setCommandBusy(true)
-      console.log('querying', value)
-      const md = await axios.post("/api/command", { command: value });
-      if (md.data) {
-        setCommandBusy(false)
-        setCommand("");
-        // update the tree
-        // setModalData({
-        //     bashCommands: md.data.bashCommands,
-        //     updatedFilePatches: md.data.updatedFilePatches,
-        //     conversationalResponse: md.data.conversationalResponse,
-        // });
-        // setModalVisible(true);
-        // const response = await axios.post('/api/commit', md);
-        setCommentary(commentary + "\n" + JSON.stringify(md.data));
-      }
-      if (md.data && md.data.conversationalResponse) {
-        setCommentary(md.data.conversationalResponse);
-      }
+      console.log("executing command", value);
+      const command = await debouncedPerformCommand(value);
+      setCommandBusy(false)
+      setCommand("");
     }
   };
+
   return (
     <div style={{ display: "flex", flexDirection: "row", height: "100%" }}>
     <Split horizontal minPrimarySize="80%">

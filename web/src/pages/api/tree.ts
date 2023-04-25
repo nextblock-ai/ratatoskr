@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-import * as config from '../../../config.json';
+import config from '../../../config.json';
 
 type Data = {
   tree: any[];

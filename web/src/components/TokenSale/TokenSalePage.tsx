@@ -19,7 +19,7 @@ const TokenSalePage: React.FC = () => {
             name="Example Token"
             description="This is an example token."
             details="More details about the token."
-            imageUrl="https://placehold.co/512x512/orange/white"
+            imageUrl="nft.jpg"
             price={10}
         />
         <TokenSaleForm

@@ -5,7 +5,7 @@ import { applyUnifiedDiff, loadFiles } from "./utils";
 import shell from "shelljs";
 import path from "path";
 import fs from "fs";
-import * as config from "../config.json";
+import config from "../config.json";
 
 // given a list of files and a user input, returns the likely dependencies
 const gatherLikelyDependencies = async (shellPath: string, files: any, userInput: string) => {
@@ -33,52 +33,104 @@ const decomposeTask = async (shellPath: string, userInput: string) => {
 }
 
 // given a list of files and a user input, returns whether additional information is required
-export async function commandLoop(userInput: string) {
+export async function commandLoop(userInput: string, resp: any, onUpdate: any) {
+
+    onUpdate(`Received command: ${userInput}`);
 
     // get the working directory, and load the files
     const shellPath = config.path
-    const files = await loadFiles(shellPath);
+    process.chdir(shellPath);
 
-    // decompose the task into subtasks
-    const decomposedTasks = await decomposeTask(shellPath, userInput);
+    const files = await loadFiles(shellPath);
+    onUpdate(`Loaded ${files.length} files from ${shellPath}`);
+
+    // // decompose the task into subtasks
+    // const decomposedTasks = await decomposeTask(shellPath, userInput);
+    const decomposedTasks = [ userInput ]
+    onUpdate('Decomposed tasks: ' + decomposedTasks.join(', '));
     let currentTaskIndex = 0;
     function getCurrentTask() {
         const tasks = []; // include previous tasks as complete
         for(let i = 0; i <= currentTaskIndex; i++) {
             const dtask = i < decomposedTasks.length ? decomposedTasks[i] : userInput;
-            const task = (i === currentTaskIndex) ? 'YOUR CURRENT TASK IS: ' + dtask : dtask + ' (complete)';
+            console.log('***', JSON.stringify(dtask));
+            const task = (i === currentTaskIndex) ? 'YOUR CURRENT TASK IS: ' + dtask + ' (incomplete)' : dtask + ' (complete)';
             tasks.push(task);
         }
+        console.log(`USER REQUEST:\n\n${userInput}\n\nTASKS TO COMPLETE USER REQUEST:\n\n${tasks.join('\n') || userInput}`)
         return 'USER REQUEST:\n\n' + userInput + '\n\nTASKS TO COMPLETE USER REQUEST:\n\n' + (tasks.join('\n') || userInput);
     }
 
-    let working = true,  steps = [];
+    let working = true
 
     while(working) {
+        const steps = [];
         // get the current task - this packages the main request and the subtasks together
         let currentTask = getCurrentTask();
+        onUpdate(`current task: ${currentTask}`);
         console.log('current task', currentTask);
 
         // here we need to get the likely dependencies for the current tassk
         let loadedFiles = await gatherLikelyDependencies(shellPath, files, currentTask);
         const likelyDeps = 'Gathered likely dependencies: ' + Object.keys(loadedFiles).join(', ');
+        
         steps.push(likelyDeps);
+        onUpdate('likely dependencies: '  + likelyDeps);
         console.log('likely dependencies', likelyDeps);
         
         // here we try to do the actual completion
         const messages = createConversation(loadedFiles, currentTask);
         const completion = await getCompletion(messages);
+        onUpdate('completion: '+ completion);
         
         // we parse the completion and get response
         let commands = JSON.parse(jsonrepair(completion));
         if (commands.response) commands = commands.response;
         
+        console.log('commands', commands);
+
         // we get all the parts of the response
         let updatedFilePatches = commands.updatedFiles ? commands.updatedFiles : ''
         let bashCommands = commands.bashCommands ? commands.bashCommands : ''
         let updatedFileExplanations = updatedFilePatches.explanations ? updatedFilePatches.explanations : ''
         let updatedFileDiffs = updatedFilePatches.unifiedDiffFormat ? updatedFilePatches.unifiedDiffFormat : ''
         let conversationalResponse = commands.conversationalResponse ? commands.conversationalResponse : ''
+        let taskCompleted = commands.taskCompleted ? commands.taskCompleted : true
+
+        let consoleOutput = '';
+        if (bashCommands) {
+            for (let i = 0; i < bashCommands.length; i++) {
+                steps.push(`Bash command: ${bashCommands[i]}`);
+                onUpdate('bash command: ' + bashCommands[i], );
+                const { stdout, stderr, code } = shell.exec(bashCommands[i]);
+                if(stdout) steps.push(`stdout (${bashCommands[i]}): ${stdout}`);
+                if(stderr) steps.push(`stderr (${bashCommands[i]}): ${stderr}`);
+                consoleOutput += stdout + '\n' + stderr + '\n';
+            }
+        }
+        console.log('BASH', consoleOutput)
+
+        // we append the current task to the steps
+        currentTask = currentTask + '\n\n' + steps.join('\n\n'); 
+        conversationalResponse += '\n\n' + consoleOutput;
+
+        onUpdate('console output', conversationalResponse);
+
+        if(!updatedFileDiffs && taskCompleted) {
+            // we move on to the next task
+            currentTaskIndex++;
+            onUpdate('task completed', conversationalResponse);
+            console.log('task completed', conversationalResponse);
+
+            if(currentTaskIndex >= decomposedTasks.length) {
+                // we are done
+                working = false;
+                onUpdate('request completed: ' + conversationalResponse);
+                console.log('request completed', conversationalResponse);
+                resp.close();
+                return true;
+            }
+        }
 
         if (updatedFileDiffs && updatedFileExplanations)
         for (let i = 0; i < Object.keys(updatedFileDiffs).length; i++) {
@@ -93,75 +145,85 @@ export async function commandLoop(userInput: string) {
                     fs.writeFileSync(fpath, newContent.patchedContent, "utf-8");
                     file.content = newContent.patchedContent;
                     steps.push(`file ${fileName} updated`);
+                    onUpdate('file updated', fileName);
                 } else {
                     steps.push(`error: ${newContent.error}`);
+                    onUpdate('error', newContent.error);
                 }
             }
         }
 
         steps.push(`Updated files: ${Object.keys(updatedFileExplanations).join(', ')}`);
         steps.push(`Updated file diffs: ${Object.keys(updatedFileDiffs).join(', ')}`);
-        steps.push(`Bash commands: ${bashCommands.join(', ')}`);
         steps.push(`Conversational response: ${conversationalResponse}`);
 
-        if (bashCommands) {
-            for (let i = 0; i < bashCommands.length; i++) {
-                console.log('BASH', bashCommands[i])
-                steps.push(`Bash command: ${bashCommands[i]}`);
-                const { stdout, stderr, code } = shell.exec(bashCommands[i]);
-                if(stdout) steps.push(`stdout (${bashCommands[i]}): ${stdout}`);
-                if(stderr) steps.push(`stderr (${bashCommands[i]}): ${stderr}`);
-            }
-        }
+        onUpdate('updated files ' + Object.keys(updatedFileExplanations).join(', '));
+        onUpdate('updated file diffs ' + Object.keys(updatedFileDiffs).join(', '));
+        onUpdate('conversational response' + conversationalResponse);
 
-        // we append the current task to the steps
-        currentTask = currentTask + '\n\n' + steps.join('\n\n'); 
-        
-        // we query to see if we need more information - usually we might need to add more files
-        const result = await queryIsAdditionalInformationRequired(currentTask, {
-            updatedFileExplanations,
-            updatedFileDiffs,
-            currentTask
-        });
         
         // if additional information is required, we add it to the userInput and loop again
-        if(result.additionalInformationRequired) {
+        if(!taskCompleted) {
+             // we query to see if we need more information - usually we might need to add more files
+            const result = await queryIsAdditionalInformationRequired(currentTask, {
+                updatedFileExplanations,
+                updatedFileDiffs,
+                currentTask
+            });
+
             currentTask = currentTask += '\nThese files are also needed: ' + result.additionalFiles;
-            console.log(currentTask)
+            onUpdate('additional files needed', result.additionalFiles);
         } else {
             // if not, we are done!
             currentTaskIndex++
-            if(currentTaskIndex >= decomposedTasks.length) working = false;
+            if(currentTaskIndex >= decomposedTasks.length) {
+                working = false;
+                onUpdate('task complete', 'task complete');
+                resp.close();
+                return 'task complete';
+            }
+            onUpdate('task complete', currentTask);
         }
     }
 }
 
-export async function commitCompletion( {
-    updatedFileExplanations,
-    updatedFileDiffs,
-}: any) {
-    const shellPath = config.path;
-    const files = await loadFiles(shellPath);
-    let results = [];
-    if (updatedFileDiffs && updatedFileExplanations)
-        for (let i = 0; i < Object.keys(updatedFileDiffs).length; i++) {
-            let fileName = Object.keys(updatedFileDiffs)[i];
-            let fileContent = updatedFileDiffs[fileName]
-            const file = files.find((f: { name: string; }) => f.name.endsWith(fileName));
-            if (file) {
-                const fpath = path.join(config.path, fileName);
-                const newContent = applyUnifiedDiff(fileContent, file.content);
-                if(!newContent.error && newContent.patchedContent) {
-                    fs.renameSync(fpath, fpath + '.bak')
-                    fs.writeFileSync(fpath, newContent.patchedContent, "utf-8");
-                    file.content = newContent.patchedContent;
-                    results.push(`file ${fileName} updated`);
-                } else {
-                    results.push(`error: ${newContent.error}`);
-                }
-            }
-        }
-    return {
-        fileUpdates: results,
-    }
-}
+
+/*
+
+Categories of operations:
+
+1. File operations
+2. Bash operations
+3. Conversational operations
+4. Informational operations
+
+The Loop:
+
+1. Get the current task
+2. Get the likely dependencies for the current task
+3. Try to do the actual completion
+4. Parse the completion and get response
+5. Get all the parts of the response
+6. If there are file operations, apply them
+7. If there are bash operations, execute them
+8. If there are conversational operations, execute them
+9. If there are informational operations, execute them
+10. If there are additional files needed, add them to the current task and loop again
+
+
+Proposed Update:
+
+1. Get the current task
+2. Get the likely dependencies for the current task
+3. Try to do the actual completion
+4. Parse the completion and get response
+5. Get all the parts of the response
+6. If there are file operations, apply them
+7. If there are bash operations, execute them
+8. If there are conversational operations, execute them
+9. If there are informational operations, execute them
+10. If there are additional files needed, add them to the current task and loop again
+
+
+
+*/

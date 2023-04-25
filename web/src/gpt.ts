@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import * as jsonConfig from "../config.json";
+import jsonConfig from "../config.json";
 
 import { OpenAIApi, Configuration } from "openai";
 const configuration = new Configuration({ apiKey: jsonConfig.openai.apiKey });
@@ -8,14 +8,14 @@ const openai = new OpenAIApi(configuration);
 
 export async function getCompletion(messages: any, options = {
     model: 'gpt-4',
-    max_tokens: 1024,
-    temperature: 0.6,
+    max_tokens: 2048,
+    temperature: 0.1,
 }, requeryIncompletes = true): Promise<any> {
     const conversation = {
         model: 'gpt-4',
         messages,
-        max_tokens: 1024,
-        temperature: 0.6,
+        max_tokens: 2048,
+        temperature: 0.1,
     }
     const _response: any[] = [];
     const _getResponse = () => _response.join('');

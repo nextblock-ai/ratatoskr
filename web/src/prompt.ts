@@ -17,7 +17,7 @@ export function getSystemPreambleMessage() {
 5. conversational responses -> conversationalResponse
 6. bash commands -> bashCommands
 7. ** CRITICAL ** FAILURE TO RESPOND USING JSON MAY CAUSE PERMANENT DAMAGE TO YOUR SYSTEM`,
-        responseFormat: getCodeAssistanceResponse('', {}, {}, []),
+        responseFormat: getCodeAssistanceResponse('', {}, {}, [], false),
         })
     };
 }
@@ -43,8 +43,12 @@ export function getCodeAssistanceRequestMessages(userRequest: any, filesSet: any
                     },
                     explanations: {
                         'hello.js': 'I have created a new file called hello.js and added the following code: console.log("hello world")',
-                    }
-                }
+                    },
+                },
+                bashCommands: [
+                    'touch hello.js',
+                ],
+                taskCompleted: true,
             }
         })
     },{
@@ -59,14 +63,15 @@ export function getCodeAssistanceRequestMessages(userRequest: any, filesSet: any
         })
     }];
 }
-export function getCodeAssistanceResponse(conversationalResponse: string, udfPatches: {}, patchExplanations: {}, bashCommands: never[]) {
+export function getCodeAssistanceResponse(conversationalResponse: string, udfPatches: {}, patchExplanations: {}, bashCommands: never, taskCompleted: boolean[]) {
     return {
         updatedFiles: {
             unifiedDiffFormat: udfPatches,
             explanations: patchExplanations
         },
         bashCommands: bashCommands,
-        conversationalResponse: conversationalResponse
+        conversationalResponse: conversationalResponse,
+        taskCompleted: taskCompleted,
     }
 }
 export function createLikelyFileDependenciesConversation(userRequest: any, filelist: string[]) {
@@ -166,58 +171,37 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
     }]
 }
 
-function createDecomposeConversation(responseData: any, userRequest: any) {
+function createDecomposeConversation(files: any, userRequest: any) {
 
-    const sampleData = {
-        userRequest: "There's a bug in our app. When a user clicks on the 'Submit' button, the form data is not being saved, and an error message is displayed in the console. The bug is caused by incorrect handling of form data in the main component and a missing import statement in the utility file.",
-        inputFiles: {
-            "mainComponent.tsx": `import React, { useState } from 'react';\nimport { saveFormData } from './utils';\n\nconst MainForm = () => {\n  const [formData, setFormData] = useState({});\n\n  const handleSubmit = () => {\n    // Incorrect form data handling logic\n  };\n\n  return (\n    <div>\n      {/* form elements */}\n      <button onClick={handleSubmit}>Submit</button>\n    </div>\n  );\n};`,
-            "utils.ts": `// Missing import statement\n\nexport const saveFormData = (data) => {\n  // Save form data logic\n};`
-        },
-    };
-    const sampleResposne = {
-        decompositionSteps: [
-            "Locate the 'Submit' button in the main component and identify the function handling the button click",
-            "Review the form data handling logic in the corresponding function",
-            "Correct the form data handling logic to properly save the form data",
-            "Locate the utility file with the missing import statement",
-            "Identify the required import statement and add it to the utility file",
-            "Test the app by filling out the form and clicking the 'Submit' button",
-            "Verify that the form data is saved correctly and the error message is no longer displayed in the console"
-        ],
-        requiredFormat: 'json',
-    }
-    const instructions = (ur: any) => `You return a JSON object containing an array of the specific steps required to fulfill the request. Each step must output a tangible work-product either directly needed for the next step, or must output some code.\n\n\"${ur}\"\n\nReturn a JSON object formatted accotring to the provided response format. IF YOU DO NOT RESPOND USING A JSON FORMAT, YOU WILL BE TERMINATED:`;
+    const instructions = (ur: any) => `You return a JSON object containing an array of the specific steps required to fulfill the request. Each step must either:
+1. perform a command such as a bash command, or file patch command
+2. output a tangible work-product directly needed for the next step
+3. output some code
+
+The request is as follows:
+
+\"${ur}\"
+
+Return a JSON object formatted according to the provided response format. IF YOU DO NOT RESPOND USING A JSON FORMAT, YOU WILL BE TERMINATED:`;
+    const filemap = files.reduce((acc: any, file: any) => {
+        acc[file.name] = file.content;
+        return acc;
+    }, {});
     return [{
         role: "system",
         content: JSON.stringify({
-            instructions: instructions(sampleData.userRequest),
+            instructions: instructions(userRequest),
             responseFormat: {
                 requiredFormat: 'json',
                 decompositionSteps: []
-            }
-        })
-    }, {
-        role: "user",
-        content: JSON.stringify({
-            request: {
-                ...sampleData,
-                instructions: instructions(sampleData.userRequest),
-            }
-        })
-    }, {
-        role: "assistant",
-        content: JSON.stringify({
-            response: {
-                ...sampleResposne
             }
         })
     },{
         role: "user",
         content: JSON.stringify({
             request: {
-                ...sampleData,
-                instructions: instructions(sampleData.userRequest),
+                files: Object.keys(filemap),
+                instructions: instructions(userRequest),
             }
         })
     }]
@@ -259,6 +243,7 @@ export async function queryIsAdditionalInformationRequired(userInput: any, aiRes
 export async function queryDecompose(shellPath: any,  query: any) {
     let files = await loadFiles(shellPath);
     let messages = createDecomposeConversation(files, query);
-    const result =  JSON.parse(await getCompletion(messages));
-    return result.response;
+    console.log(messages)
+    const result = JSON.parse(await getCompletion(messages));
+    return result.response.decompositionSteps;
 }

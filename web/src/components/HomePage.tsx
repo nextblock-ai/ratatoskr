@@ -6,6 +6,7 @@ import axios from "axios";
 import 'easymde/dist/easymde.min.css';
 import ScriptRunner from "./ScriptRunner";
 import LocationBar from "./LocationBar";
+import SpeechCognizerComponent from "./SpeechCognizerComponent";
 
 const EditorComponent = dynamic(() => import("react-simplemde-editor"), {
     ssr: false,
@@ -35,6 +36,7 @@ const HomePage = () => {
   const [commandBusy, setCommandBusy] = useState(true);
   const [isScript, setIsScript] = useState(false);
   const [path, setPath] = useState("/");
+  const [listening, setListening] = useState(true);
 
   const findTreeData = (name: string, treeData: any) => {
     for (let i = 0; i < treeData.length; i++) {
@@ -113,10 +115,19 @@ const HomePage = () => {
     }
   };
 
+  function onInterim(text: string) {
+    setCommand(command + text);
+  }
+
+  function onComplete(text: string) {
+    setCommand(command + text);
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "row", height: "100%" }}>
     <Split horizontal minPrimarySize="80%">
         <div style={{ flexGrow: 1, height: '100%' }}>
+        <SpeechCognizerComponent listening={listening} onInterim={onInterim} onComplete={onComplete} />
             <LocationBar path={path} onPathChanged={setPath} />
             <div style={{ flexGrow: 1, height: '100%' }}>
             <ReviewAndApproveModal
@@ -202,6 +213,7 @@ const HomePage = () => {
             style={{ position: "sticky", bottom: 0, height: "100%" }}
             />
     </Split>
+    
     </div>
   );
 };

@@ -62,14 +62,13 @@ const HomePage = () => {
       timeout = setTimeout(() => func.apply(context, args), wait);
     };
   }
-
+  async function fetchData() {
+    const res = await axios.get("/api/tree");
+    setTreeData(res.data.tree);
+    const cwd = await axios.get("/api/cwd");
+    setPath(cwd.data.cwd);
+  }
   useEffect(() => {
-    async function fetchData() {
-        const res = await axios.get("/api/tree");
-        setTreeData(res.data.tree);
-        const cwd = await axios.get("/api/cwd");
-        setPath(cwd.data.cwd);
-    }
     fetchData();
   }, []);
 
@@ -83,8 +82,12 @@ const HomePage = () => {
       console.log("Connection opened:", event);
     };
   
-    source.onmessage = (event) => {
+    source.onmessage = async (event) => {
       const d = JSON.parse(event.data);
+      if(!d.data) {
+        fetchData();
+        return;
+      }
       setCommentary(d.data + "\n\n" + commentary);
     };
   
@@ -107,9 +110,11 @@ const HomePage = () => {
     // if the command ends with a newline, then execute it
     const parts = value.split("\n");
     const lastpart = parts[parts.length - 1].trim();
-    if (lastpart.length === 0) {
+
+    value = value.trim();
+    if (lastpart.length === 0 && value && value.length > 0) {
       console.log("executing command", value);
-      const command = await debouncedPerformCommand(value);
+      const command = debouncedPerformCommand(value);
       setCommandBusy(false)
       setCommand("");
     }

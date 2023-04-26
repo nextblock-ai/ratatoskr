@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-import config from '../../../config';
+import config from '../../config';
 
 function buildTree(rootPath: string): any[] {
   const filesAndFolders = fs.readdirSync(rootPath);

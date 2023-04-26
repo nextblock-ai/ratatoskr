@@ -84,11 +84,16 @@ const HomePage = () => {
   
     source.onmessage = async (event) => {
       const d = JSON.parse(event.data);
-      if(!d.data) {
+      if(!d.message) {
         fetchData();
         return;
       }
-      setCommentary(d.data + "\n\n" + commentary);
+      setCommentary(d.message + "\n\n" + commentary);
+      // if the message contains the word 'complete', then we're done
+      // if(d.message.toLowerCase().indexOf("complete") >= 0) {
+        
+      // }
+      fetchData();
     };
   
     source.onerror = (event) => {
@@ -157,7 +162,7 @@ const HomePage = () => {
                             setContent(res.data.file);
                             if(!(selectedKeys[0] as any).endsWith('.script')) {
                                 res = await axios.get(`/api/summary?path=${pa}`);
-                                setCommentary(res.data.message);
+                                if (res.data.message)setCommentary(res.data.message);
                                 setIsScript(false);
                             } else {
                                 setIsScript(true);

@@ -13,7 +13,19 @@ handler.get(async (req: any, res: any) => {
     res.flushHeaders();
     // get the command from the query string
     const { command } = req.query;
-    const writeData = (data: any) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+    const updateStream: {
+        message: string
+    }[] = [];
+    const addUpdateToStream = (update: any) => updateStream.push({
+        message: update,
+    });
+
+    const writeData = (data: any) => { 
+        addUpdateToStream(data);
+        const update = JSON.stringify(updateStream[updateStream.length - 1]);
+        res.write(`data: ${update}\n\n`); 
+    }
+
     // run the command and send the output to the client
     await commandLoop(command, res, (data: any) => writeData({data}));
     // Clean up when the connection is closed

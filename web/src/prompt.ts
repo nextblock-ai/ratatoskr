@@ -173,37 +173,16 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
 
 function createDecomposeConversation(files: any, userRequest: any) {
 
-    const instructions = (ur: any) => `You return a JSON object containing an array of the specific steps required to fulfill the request. Each step must either:
-1. perform a command such as a bash command, or file patch command
-2. output a tangible work-product directly needed for the next step
-3. output some code
-
-The request is as follows:
-
-\"${ur}\"
-
-Return a JSON object formatted according to the provided response format. IF YOU DO NOT RESPOND USING A JSON FORMAT, YOU WILL BE TERMINATED:`;
     const filemap = files.reduce((acc: any, file: any) => {
         acc[file.name] = file.content;
         return acc;
     }, {});
     return [{
         role: "system",
-        content: JSON.stringify({
-            instructions: instructions(userRequest),
-            responseFormat: {
-                requiredFormat: 'json',
-                decompositionSteps: []
-            }
-        })
+        content: `You are a task decomposer who decomposes user-generated tasks related to a set of project filenames provided with the request into a series of implementation steps. Each implementation step must feature either an informational output necessary for the next step, a file update, or a question or communication to the user. If the implementation step can be expressed as a shell command, then do so.. OUTPUT YOUR DATA AS A JSON ARRAY ONLY USING THE FORMAT [ { "step": 1, "action": "...", "shell_command": "..." } ]`
     },{
         role: "user",
-        content: JSON.stringify({
-            request: {
-                files: Object.keys(filemap),
-                instructions: instructions(userRequest),
-            }
-        })
+        content: JSON.stringify({ "userRequest": userRequest })
     }]
 }
 

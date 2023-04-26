@@ -29,7 +29,7 @@ const decomposeTask = async (shellPath: string, userInput: string) => {
         shellPath,
         userInput,
     );
-    return tasks;
+    return JSON.parse(tasks);
 }
 
 // given a list of files and a user input, returns whether additional information is required
@@ -45,20 +45,27 @@ export async function commandLoop(userInput: string, resp: any, onUpdate: any) {
     onUpdate(`Loaded ${files.length} files from ${shellPath}`);
 
     // // decompose the task into subtasks
-    // const decomposedTasks = await decomposeTask(shellPath, userInput);
-    const decomposedTasks = [ userInput ]
-    onUpdate('Decomposed tasks: ' + decomposedTasks.join(', '));
+    let decomposedTasks = await decomposeTask(shellPath, userInput);
+    decomposedTasks = decomposedTasks.map((t: any)=>({
+        task: t.action,
+        command: t.shell_command,
+    }));
+    onUpdate('Decomposed tasks: ' + decomposedTasks.map((t:any)=>(`${t.command}: ${t.action}`)).join('\n'));
+
     let currentTaskIndex = 0;
     function getCurrentTask() {
-        const tasks = []; // include previous tasks as complete
-        for(let i = 0; i <= currentTaskIndex; i++) {
-            const dtask = i < decomposedTasks.length ? decomposedTasks[i] : userInput;
-            console.log('***', JSON.stringify(dtask));
-            const task = (i === currentTaskIndex) ? 'YOUR CURRENT TASK IS: ' + dtask + ' (incomplete)' : dtask + ' (complete)';
-            tasks.push(task);
-        }
-        console.log(`USER REQUEST:\n\n${userInput}\n\nTASKS TO COMPLETE USER REQUEST:\n\n${tasks.join('\n') || userInput}`)
-        return 'USER REQUEST:\n\n' + userInput + '\n\nTASKS TO COMPLETE USER REQUEST:\n\n' + (tasks.join('\n') || userInput);
+        const decomposedTaskStrings = decomposedTasks.map((t:any)=>(`${t.command}: ${t.action}`));
+        // get the decomposed tasks up to the last one not including the current task
+        const dtasks = decomposedTaskStrings.slice(0, currentTaskIndex).map((t:any)=>`${t} (complete)`).join('\n');
+        // get the current task
+        const currentTask = decomposedTaskStrings[currentTaskIndex] + ' (incomplete)';
+        return `USER REQUEST:
+        
+${userInput}
+
+COMPLETED TASKS:  ${dtasks || userInput}
+CURRENT TASK:  ${currentTask}
+`
     }
 
     let working = true
@@ -116,6 +123,27 @@ export async function commandLoop(userInput: string, resp: any, onUpdate: any) {
 
         onUpdate('console output', conversationalResponse);
 
+        if (updatedFileDiffs)
+            for (let i = 0; i < Object.keys(updatedFileDiffs).length; i++) {
+                let fileName = Object.keys(updatedFileDiffs)[i];
+                let fileContent = updatedFileDiffs[fileName]
+                const file = files.find((f: { name: string; }) => f.name.includes(fileName));
+                if (file) {
+                    const fpath = path.join(config.path, fileName);
+                    const newContent = applyUnifiedDiff(fileContent, file.content);
+                    if(!newContent.error && newContent.patchedContent) {
+                        fs.renameSync(fpath, fpath + '.bak')
+                        fs.writeFileSync(fpath, newContent.patchedContent, "utf-8");
+                        file.content = newContent.patchedContent;
+                        steps.push(`file ${fileName} updated`);
+                        onUpdate(`file ${fileName} updated`, conversationalResponse);
+                    } else {
+                        steps.push(`error: ${newContent.error}`);
+                        onUpdate('error', newContent.error);
+                    }
+                }
+            }
+
         if(!updatedFileDiffs && taskCompleted) {
             // we move on to the next task
             currentTaskIndex++;
@@ -129,27 +157,6 @@ export async function commandLoop(userInput: string, resp: any, onUpdate: any) {
                 console.log('request completed', conversationalResponse);
                 resp.close();
                 return true;
-            }
-        }
-
-        if (updatedFileDiffs && updatedFileExplanations)
-        for (let i = 0; i < Object.keys(updatedFileDiffs).length; i++) {
-            let fileName = Object.keys(updatedFileDiffs)[i];
-            let fileContent = updatedFileDiffs[fileName]
-            const file = files.find((f: { name: string; }) => f.name.endsWith(fileName));
-            if (file) {
-                const fpath = path.join(config.path, fileName);
-                const newContent = applyUnifiedDiff(fileContent, file.content);
-                if(!newContent.error && newContent.patchedContent) {
-                    fs.renameSync(fpath, fpath + '.bak')
-                    fs.writeFileSync(fpath, newContent.patchedContent, "utf-8");
-                    file.content = newContent.patchedContent;
-                    steps.push(`file ${fileName} updated`);
-                    onUpdate('file updated', fileName);
-                } else {
-                    steps.push(`error: ${newContent.error}`);
-                    onUpdate('error', newContent.error);
-                }
             }
         }
 

@@ -81,3 +81,7 @@ div {
   text-align: center;
   border-radius: 4px;
 }
+
+.ant-input {
+  transition: all 0.3s;
+}

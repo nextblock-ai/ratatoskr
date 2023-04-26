@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import shell from "shelljs";
 import { createConversation, queryDependencies, queryIsAdditionalInformationRequired } from "./prompt";
-import { jsonrepair } from 'jsonrepair'
+import { jsonrepair } from 'jsonrepair';
 import { getCompletion } from "./gpt";
 import config from "../config.json";
 

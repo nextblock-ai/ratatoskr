@@ -1,5 +1,3 @@
-// a location bar react component - accepts a path and a callback and displays the path and calls the callback when the path is changed
-// leverages ant.design components
 import React, { useState } from 'react';
 import { Breadcrumb, Input } from 'antd';
 
@@ -17,15 +15,14 @@ const LocationBar: React.FC<LocationBarProps> = ({ path, onPathChanged }) => {
         onPathChanged(location);
     };
     return (
-        <Breadcrumb>
-            <Breadcrumb.Item>
-                <Input
-                    value={location}
-                    onChange={onLocationChanged}
-                    onBlur={onLocationBlur}
-                />
-            </Breadcrumb.Item>
-        </Breadcrumb>
+        <div className="m-2">
+        <Input
+            value={location}
+            onChange={onLocationChanged}
+            onBlur={onLocationBlur}
+            className="border border-gray-300 rounded"
+        />
+        </div>
     );
 };
 

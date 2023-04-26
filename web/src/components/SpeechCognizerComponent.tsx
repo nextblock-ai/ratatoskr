@@ -2,10 +2,10 @@
 
 import React, { useEffect, useRef } from 'react';
 
-const SpeechCognizerComponent = ({ listening, onInterim, onComplete }: any) => {
+const SpeechCognizerComponent = ({ listening, autoRestart, onInterim, onComplete }: any) => {
   const recognitionRef = useRef(null);
   const wnd = window ? window : null;
-
+  
   useEffect(() => {
     if (!wnd) {
       return;
@@ -29,6 +29,11 @@ const SpeechCognizerComponent = ({ listening, onInterim, onComplete }: any) => {
         }
       }
     };
+    (recognitionRef as any).onerror = (event: any) => {
+      if(autoRestart) {
+        (recognitionRef as any).current.start();
+      }
+    }
   }, []);
 
   useEffect(() => {

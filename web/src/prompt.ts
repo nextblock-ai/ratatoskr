@@ -150,15 +150,16 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
         content: JSON.stringify({
             request: {
                 instructions: instructions(sampleRequest, sampleData),
-            }
+            },
+            requiredFormat: 'json',
         })
     }, {
         role: "assistant",
         content: JSON.stringify({
             response: {
-                isComplete: true,
+                isComplete: false,
                 additionalFiles: 'src/gpt.tsx, src/util.tsx',
-            }
+            },
         })
     },{
         role: "user",
@@ -171,18 +172,26 @@ function createAdditionalInformationRequiredConversation(responseData: any, user
     }]
 }
 
-function createDecomposeConversation(files: any, userRequest: any) {
-
+function createDecomposeConversation(files: any, userRequest: any, useFileMap: boolean = false) {
     const filemap = files.reduce((acc: any, file: any) => {
         acc[file.name] = file.content;
         return acc;
     }, {});
+    const requestWithFilemap = {
+        userRequest,
+        files: filemap
+    }
+    const requestWithFiles = {
+        userRequest,
+    }
     return [{
         role: "system",
         content: `You are a task decomposer who decomposes user-generated tasks related to a set of project filenames provided with the request into a series of implementation steps. Each implementation step must feature either an informational output necessary for the next step, a file update, or a question or communication to the user. If the implementation step can be expressed as a shell command, then do so.. OUTPUT YOUR DATA AS A JSON ARRAY ONLY USING THE FORMAT [ { "step": 1, "action": "...", "shell_command": "..." } ]`
     },{
         role: "user",
-        content: JSON.stringify({ "userRequest": userRequest })
+        content: JSON.stringify(
+            useFileMap ? requestWithFilemap : requestWithFiles
+        )
     }]
 }
 
@@ -215,14 +224,17 @@ export async function queryCodebase(shellPath: any, query: any) {
 
 export async function queryIsAdditionalInformationRequired(userInput: any, aiResponse: any) {
     let messages = createAdditionalInformationRequiredConversation(aiResponse, userInput);
-    const completionResult = JSON.parse( await getCompletion(messages));
-    return completionResult.response;
+    const completion = await getCompletion(messages)
+    const result = JSON.parse( completion);
+    return result.response;
 }
 
 export async function queryDecompose(shellPath: any,  query: any) {
     let files = await loadFiles(shellPath);
     let messages = createDecomposeConversation(files, query);
-    console.log(messages)
-    const result = JSON.parse(await getCompletion(messages));
-    return result.response.decompositionSteps;
+    return JSON.parse(await getCompletion(messages, {
+        model: 'gpt-4',
+        max_tokens: 2048,
+        temperature: 0.6,
+    }));
 }

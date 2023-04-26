@@ -5,7 +5,7 @@ import shell from "shelljs";
 import { createConversation, queryDependencies, queryIsAdditionalInformationRequired } from "./prompt";
 import { jsonrepair } from 'jsonrepair';
 import { getCompletion } from "./gpt";
-import config from "../config.json";
+import config from "../config";
 
 
 export function applyUnifiedDiff(patch: string, content: string) {
@@ -87,7 +87,7 @@ export async function loadFiles(shellPath: any) {
         let fileContents: any[] = [];
         for (const file of files) {
             const fPath = path.join(dirPath, file);
-            const ignorableFilesAndFolders = ["__tests__", "node_modules", ".git", ".next", "package.json", "package-lock.json", "yarn.lock", "tsconfig.json", "tsconfig.build.json", "next.config.js", "next-env.d.ts", "README.md", "LICENSE", "Dockerfile", "docker-compose.yml" ];
+            const ignorableFilesAndFolders = ["__tests__", "node_modules", ".git", ".next", "package.json", "package-lock.json", "yarn.lock", "tsconfig.js", "tsconfig.build.json", "next.config.js", "next-env.d.ts", "README.md", "LICENSE", "Dockerfile", "docker-compose.yml" ];
             if (ignorableFilesAndFolders.includes(file)) continue;
             const stats = fs.lstatSync(fPath);
             if (stats.isDirectory()) {

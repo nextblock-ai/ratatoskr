@@ -24,6 +24,7 @@ handler.get(async (req: any, res: any) => {
         addUpdateToStream(data);
         const update = JSON.stringify(updateStream[updateStream.length - 1]);
         res.write(`data: ${update}\n\n`); 
+        console.log('update', update);
     }
 
     // run the command and send the output to the client

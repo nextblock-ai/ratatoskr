@@ -29,7 +29,7 @@ const { Sider, Content, Footer } = Layout;
 const HomePage = () => {
   const [treeData, setTreeData] = useState([]);
   const [content, setContent] = useState(" ");
-  const [commentary, setCommentary] = useState(" ");
+  const [commentary, setCommentary] = useState([]);
   const [command, setCommand] = useState(" ");
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({});
@@ -73,8 +73,10 @@ const HomePage = () => {
   }, []);
 
   async function performCommand(value: string) {
+    
     setCommandBusy(true);
-    setCommentary("Command: " + value);
+    (commentary as any).push("Command: " + value);
+    
     console.log("querying", value);
     const source = new EventSource("/api/stream-command?command=" + encodeURIComponent(value));
   
@@ -84,16 +86,14 @@ const HomePage = () => {
   
     source.onmessage = async (event) => {
       const d = JSON.parse(event.data);
-      if(!d.message) {
-        fetchData();
-        return;
-      }
-      setCommentary(d.message + "\n\n" + commentary);
+      if(!d.message) { return; }
+
+      (commentary as any).push("Command: " + d.message.data);
+      setCommentary(commentary);
       // if the message contains the word 'complete', then we're done
       // if(d.message.toLowerCase().indexOf("complete") >= 0) {
         
       // }
-      fetchData();
     };
   
     source.onerror = (event) => {
@@ -137,7 +137,7 @@ const HomePage = () => {
     <div style={{ display: "flex", flexDirection: "row", height: "100%" }}>
     <Split horizontal minPrimarySize="80%">
         <div style={{ flexGrow: 1, height: '100%' }}>
-        <SpeechCognizerComponent listening={listening} onInterim={onInterim} onComplete={onComplete} />
+        <SpeechCognizerComponent autoRestart={true} listening={listening} onInterim={onInterim} onComplete={onComplete} />
             <LocationBar path={path} onPathChanged={setPath} />
             <div style={{ flexGrow: 1, height: '100%' }}>
             <ReviewAndApproveModal
@@ -162,7 +162,8 @@ const HomePage = () => {
                             setContent(res.data.file);
                             if(!(selectedKeys[0] as any).endsWith('.script')) {
                                 res = await axios.get(`/api/summary?path=${pa}`);
-                                if (res.data.message)setCommentary(res.data.message);
+                                (commentary as any).push(res.data.message);
+                                if (res.data.message)setCommentary(commentary);
                                 setIsScript(false);
                             } else {
                                 setIsScript(true);
@@ -191,19 +192,14 @@ const HomePage = () => {
                             className="full-size"
                             value={content || ''}
                             onChange={handleContentChange}
-                            options={{
-                                autoSize: true,
-                            }}
+                            options={{ autoSize: true, }}
                         />
                     }
                     <EditorComponent
-                    className="full-size"
-                    value={commentary || ''}
-                    onChange={handleCommandChange}
-                    options={{
-                        autoSize: true,
-                        toolbar: false,
-                    }}
+                      className="full-size"
+                      value={commentary.join('\n\n') || ''}
+                      onChange={handleCommandChange}
+                      options={{ autoSize: true, toolbar: false, }}
                     />
                 </Split>
                 </div>

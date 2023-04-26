@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "ts-node src/server.ts",
+    "dev:debug": "ts-node --transpile-only --respawn --inspect=4321 --project tsconfig.js src/server.ts",
     "build": "next build",
     "start": "NODE_ENV=production ts-node src/server.ts",
     "lint": "next lint"

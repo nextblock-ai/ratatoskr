@@ -5,7 +5,7 @@ import { applyUnifiedDiff, loadFiles } from "./utils";
 import shell from "shelljs";
 import path from "path";
 import fs from "fs";
-import config from "../config.json";
+import config from "../config";
 
 // given a list of files and a user input, returns the likely dependencies
 const gatherLikelyDependencies = async (shellPath: string, files: any, userInput: string) => {
@@ -25,11 +25,10 @@ const gatherLikelyDependencies = async (shellPath: string, files: any, userInput
 // given a list of files and a user input, returns whether additional information is required
 const decomposeTask = async (shellPath: string, userInput: string) => {
     // get the decomposition for the user tasks - this is the specific speps to complete the task
-    let tasks = await queryDecompose(
+    return queryDecompose(
         shellPath,
         userInput,
     );
-    return JSON.parse(tasks);
 }
 
 // given a list of files and a user input, returns whether additional information is required
@@ -45,16 +44,17 @@ export async function commandLoop(userInput: string, resp: any, onUpdate: any) {
     onUpdate(`Loaded ${files.length} files from ${shellPath}`);
 
     // // decompose the task into subtasks
+    onUpdate('Decomposing task...');
     let decomposedTasks = await decomposeTask(shellPath, userInput);
     decomposedTasks = decomposedTasks.map((t: any)=>({
         task: t.action,
         command: t.shell_command,
     }));
-    onUpdate('Decomposed tasks: ' + decomposedTasks.map((t:any)=>(`${t.command}: ${t.action}`)).join('\n'));
+    onUpdate('Decomposed tasks: ' + decomposedTasks.map((t:any)=>(`${t.command}: ${t.task}`)).join('\n'));
 
     let currentTaskIndex = 0;
     function getCurrentTask() {
-        const decomposedTaskStrings = decomposedTasks.map((t:any)=>(`${t.command}: ${t.action}`));
+        const decomposedTaskStrings = decomposedTasks.map((t:any)=>(`${t.command}: ${t.task}`));
         // get the decomposed tasks up to the last one not including the current task
         const dtasks = decomposedTaskStrings.slice(0, currentTaskIndex).map((t:any)=>`${t} (complete)`).join('\n');
         // get the current task
@@ -82,7 +82,7 @@ CURRENT TASK:  ${currentTask}
         const likelyDeps = 'Gathered likely dependencies: ' + Object.keys(loadedFiles).join(', ');
         
         steps.push(likelyDeps);
-        onUpdate('likely dependencies: '  + likelyDeps);
+        onUpdate('likely dependencies: ' + likelyDeps);
         console.log('likely dependencies', likelyDeps);
         
         // here we try to do the actual completion
@@ -93,8 +93,6 @@ CURRENT TASK:  ${currentTask}
         // we parse the completion and get response
         let commands = JSON.parse(jsonrepair(completion));
         if (commands.response) commands = commands.response;
-        
-        console.log('commands', commands);
 
         // we get all the parts of the response
         let updatedFilePatches = commands.updatedFiles ? commands.updatedFiles : ''
@@ -104,8 +102,28 @@ CURRENT TASK:  ${currentTask}
         let conversationalResponse = commands.conversationalResponse ? commands.conversationalResponse : ''
         let taskCompleted = commands.taskCompleted ? commands.taskCompleted : true
 
+        if(updatedFilePatches) {
+            steps.push('Updated files: ' + Object.keys(updatedFilePatches).join(', '));
+            onUpdate('updated files: ' + Object.keys(updatedFilePatches).join(', '));
+            console.log('updated files', Object.keys(updatedFilePatches).join(', '));
+        }
+        if(updatedFileExplanations) {
+            steps.push('Updated file explanations: ' + Object.keys(updatedFileExplanations).join(', '));
+            onUpdate('updated file explanations: ' + Object.keys(updatedFileExplanations).join(', '));
+            console.log('updated file explanations', Object.keys(updatedFileExplanations).join(', '));
+        }
+        if(updatedFileDiffs) {
+            steps.push('Updated file diffs: ' + Object.keys(updatedFileDiffs).join(', '));
+            onUpdate('updated file diffs: ' + Object.keys(updatedFileDiffs).join(', '));
+            console.log('updated file diffs', Object.keys(updatedFileDiffs).join(', '));
+        }
+
         let consoleOutput = '';
         if (bashCommands) {
+            steps.push('Bash commands: ' + bashCommands.join(', '));
+            onUpdate('bash commands: ' + bashCommands.join(', '));
+            console.log('bash commands', bashCommands.join(', '));
+
             for (let i = 0; i < bashCommands.length; i++) {
                 steps.push(`Bash command: ${bashCommands[i]}`);
                 onUpdate('bash command: ' + bashCommands[i], );

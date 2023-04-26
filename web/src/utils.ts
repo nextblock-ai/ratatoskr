@@ -5,7 +5,7 @@ import shell from "shelljs";
 import { createConversation, queryDependencies, queryIsAdditionalInformationRequired } from "./prompt";
 import { jsonrepair } from 'jsonrepair';
 import { getCompletion } from "./gpt";
-import config from "../config";
+import config from "@/config";
 
 
 export function applyUnifiedDiff(patch: string, content: string) {

@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import jsonConfig from "../config";
+import jsonConfig from "@/config";
 
 import { OpenAIApi, Configuration } from "openai";
 const configuration = new Configuration({ apiKey: jsonConfig.openai.apiKey });

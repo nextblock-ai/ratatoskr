@@ -5,7 +5,7 @@ import { applyUnifiedDiff, loadFiles } from "./utils";
 import shell from "shelljs";
 import path from "path";
 import fs from "fs";
-import config from "../config";
+import config from "@/config";
 
 // given a list of files and a user input, returns the likely dependencies
 const gatherLikelyDependencies = async (shellPath: string, files: any, userInput: string) => {

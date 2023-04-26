@@ -30,7 +30,7 @@ const HomePage = () => {
   const [treeData, setTreeData] = useState([]);
   const [content, setContent] = useState(" ");
   const [commentary, setCommentary] = useState([]);
-  const [command, setCommand] = useState(" ");
+  const [command, setCommand] = useState(' ');
   const [modalVisible, setModalVisible] = useState(false);
   const [modalData, setModalData] = useState({});
   const [commandBusy, setCommandBusy] = useState(true);
@@ -70,6 +70,7 @@ const HomePage = () => {
   }
   useEffect(() => {
     fetchData();
+    setCommand((localStorage && localStorage.getItem("command")) || '')
   }, []);
 
   async function performCommand(value: string) {
@@ -122,7 +123,9 @@ const HomePage = () => {
       const command = debouncedPerformCommand(value);
       setCommandBusy(false)
       setCommand("");
+      localStorage && localStorage.setItem("command", '');
     }
+    localStorage && localStorage.setItem("command", value);
   };
 
   function onInterim(text: string) {

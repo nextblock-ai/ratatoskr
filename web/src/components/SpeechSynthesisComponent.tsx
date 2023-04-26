@@ -1,5 +1,5 @@
 import axios from 'axios';
-import config from '../../config';
+import config from '@/config';
 
 function playAudio(audioData: any) {
     return new Promise(function (resolve, reject) {

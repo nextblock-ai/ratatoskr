@@ -34,15 +34,15 @@ const { message } = require("blessed");
         const log = (message) => {  onUpdate(message);  }
         const messages = existingMessages.length > 0 ? existingMessages : [{
             role: "system",
-            content: `You are a master developer skilled in bash commands and task decomposition.
+            content: `You are a master developer skilled in bash commands, task decomposition, app design and implementation. Given user input, you either implement the task in one-shot or you decompose the task then implement the sub-tasks.
 1. No natural-language responses or commentary. ALL COMMANDS ON THEIR OWN LINE
 2. Complete task, then output /TASK <taskname>.
-3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it, end with /DECOMPOSED on its own line
+3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it
 4. Request stdout data with /SHOWTERMINAL ON ITS OWN LINE
 5. Use cat, tail, echo, sed, and unified diff to manipulate files.
 6. Ask questions with /ASK <question> on its own line
 7. Finish work with /DONE on its own line
-8. ||NO COMMENTARY OR FORMATTING||.`
+8. ||NO COMMENTARY OR FORMATTING||`
         },{
             role: "user",
             content: `Primary Goal:
@@ -73,6 +73,8 @@ const { message } = require("blessed");
             ]
             let isDone = false
             potentialBashStatements = result.split('\n');
+
+
             for(let i = 0; i < potentialBashStatements.length; i++) {
                 const statement = potentialBashStatements[i];
                 // if it starts with [ then its a bash statement]
@@ -129,8 +131,15 @@ const { message } = require("blessed");
                             break;
                     }
                 } else {
+                    if(!statement.trim()) {
+                        continue;
+                    }
                     const bashCallout = statement;
                     const bashResults = shell.exec(bashCallout, { silent: true });
+                    if(bashResults.stdout) {
+                        pendingOutput.push(bashResults.stdout);
+                    }
+
                     pendingOutput.push(bashResults.stdout);
                     if(bashResults.stderr) {
                         pendingOutput.push('ERROR' + bashResults.stderr);

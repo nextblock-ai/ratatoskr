@@ -73,9 +73,33 @@ const { message } = require("blessed");
             }
             spinner.stop();
             if(result === '/DONE') {
-                log('Done');
-                break;
+                const query = await enquirer.prompt({
+                    type: 'input',
+                    name: 'query',
+                    message: 'What is the query?',
+                });
+                await softwareDeveloper(query.query, _path, 10, [], undefined, (data)=> {
+                    console.log(data);
+                });
+                return;
             }
+
+            const validCommands = [
+                'TASK',
+                'DECOMPOSITION',
+                'SHOWTERMINAL',
+                'ASK',
+                'DONE',
+            ]
+            let isDone = false
+            potentialBashStatements = result.split('\n');
+
+            // filter out anything that starts with /
+            let bashStatement = potentialBashStatements.filter(e => !e.startsWith('/')).join('\n');
+            if(!bashStatement.trim()) {
+                continue;
+            }
+            
             if(result.startsWith('/ASK')) {
                 const question = bashStatement.split(' ').slice(1).join(' ');
                 const answer = await enquirer.prompt({
@@ -95,22 +119,6 @@ const { message } = require("blessed");
             }
             log(result);
 
-            const validCommands = [
-                'TASK',
-                'DECOMPOSITION',
-                'SHOWTERMINAL',
-                'ASK',
-                'DONE',
-            ]
-            let isDone = false
-            potentialBashStatements = result.split('\n');
-
-            // filter out anything that starts with /
-            let bashStatement = potentialBashStatements.filter(e => !e.startsWith('/')).join('\n');
-            if(!bashStatement.trim()) {
-                continue;
-            }
-            
             const bashResults = shell.exec(bashStatement, { silent: true });
             console.log(bashResults.stdout);
             if(bashResults.stdout) {
@@ -197,14 +205,6 @@ const { message } = require("blessed");
                             content:'Complete the task: ' + incompleteTask
                         })
                         break;
-
-                    case 'DONE':
-                        messages.push({
-                            role: "system",
-                            content: pendingOutput.join('\n')
-                        })
-                        isDone = true;
-                        return messages;
 
                     default:
                         pendingOutput.push(`Invalid command: ${command}`);

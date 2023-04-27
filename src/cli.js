@@ -65,6 +65,27 @@ const { message } = require("blessed");
                 temperature: 0.01,
             })
             spinner.stop();
+            if(result === '/DONE') {
+                log('Done');
+                break;
+            }
+            if(result.startsWith('/ASK')) {
+                const question = bashStatement.split(' ').slice(1).join(' ');
+                const answer = await enquirer.prompt({
+                    type: 'input',
+                    name: 'answer',
+                    message: question,
+                });
+                messages.push({
+                    role: "assistant",
+                    content: question
+                })
+                messages.push({
+                    role: "user",
+                    content: answer.answer
+                })
+                continue;
+            }
             log(result);
 
             const validCommands = [
@@ -77,116 +98,109 @@ const { message } = require("blessed");
             let isDone = false
             potentialBashStatements = result.split('\n');
 
+            // filter out anything that starts with /
+            let bashStatement = potentialBashStatements.filter(e => !e.startsWith('/')).join('\n');
+            if(!bashStatement.trim()) {
+                continue;
+            }
+            
+            const bashResults = shell.exec(bashStatement, { silent: true });
+            if(bashResults.stdout) {
+                pendingOutput.push(bashResults.stdout);
+            }
 
-            for(let i = 0; i < potentialBashStatements.length; i++) {
-                const statement = potentialBashStatements[i];
-                // if it starts with [ then its a bash statement]
-                if(statement.startsWith('[')) {
-                    // this is a bash statement
-                    if(statement.includes('[ ]')) { 
-                        pendingOutput.push(statement);
-                    }
+            messages.push({
+                role: "user",
+                content: bashStatement
+                + '\n/TASK'
+            })
+            messages.push({
+                role: "system",
+                content: bashResults
+                + '\n/TASK'
+            })
+
+            if(bashResults.stderr) {
+                pendingOutput.push('ERROR' + bashResults.stderr);
+            }
+
+            // if it starts with [ then its a bash statement]
+            if(bashStatement.startsWith('[')) {
+                // this is a bash statement
+                if(bashStatement.includes('[ ]')) { 
+                    pendingOutput.push(bashStatement);
                 }
-                // if it starts with / then its a command
-                else if(statement.startsWith('/')) {
-                    const command = statement.split('/')[1];
-                    if(!validCommands.includes(command)) {
+            }
+            // if it starts with / then its a command
+            else if(bashStatement.startsWith('/')) {
+                const command = bashStatement.split('/')[1];
+                if(!validCommands.includes(command)) {
+                    pendingOutput.push(`Invalid command: ${command}`);
+                }
+                pendingOutput.push(`/${command}`);
+                switch(command.split(' ')[0]) {
+                    case 'TASK':
+                        let taskName = bashStatement.split(' ').slice(1).join(' ');
+                        pendingOutput.push(`[x] ${taskName}`);
+
+                        // find the task in the task list
+                        const taskIndex = tasksList.indexOf(taskName);
+                        if(taskIndex > -1) {
+                            tasksList.splice(taskIndex, 1);
+                        }
+                        while(messages.length > messagesSize) {
+                            messages.pop();
+                        }
+
+                        messages.push({
+                            role: "assistant",
+                            content: pendingOutput.join('\n') 
+                            + '\n/TASK'
+                        })
+                        taskName = tasksList[0];
+                        messages.push({
+                            role: "user",
+                            content: 'Complete the task: ' + taskName
+                        })
+
+                        break;
+
+                    case 'SHOWTERMINAL':
+                        messages.push({
+                            role: "user",
+                            content: bashResults
+                        })
+                        pendingOutput = [];
+                        break;
+
+                    case 'DECOMPOSITION':
+                        // get the first incomplete task
+                        tasksList = pendingOutput.filter((line)=> line.startsWith('[ ]'));
+                        messagesSize = messages.length;
+                        const incompleteTask = tasksList[0];
+                        messages.push({
+                            role: "assistant",
+                            content: pendingOutput.join('\n') 
+                            + '\n/DECOMPOSITION\n'
+                        })
+            
+                        messages.push({
+                            role: "user",
+                            content:'Complete the task: ' + incompleteTask
+                        })
+                        break;
+
+                    case 'DONE':
+                        messages.push({
+                            role: "system",
+                            content: pendingOutput.join('\n')
+                        })
+                        isDone = true;
+                        return messages;
+
+                    default:
                         pendingOutput.push(`Invalid command: ${command}`);
-                    }
-                    pendingOutput.push(`/${command}`);
-                    switch(command.split(' ')[0]) {
-                        case 'TASK':
-                            let taskName = statement.split(' ').slice(1).join(' ');
-                            pendingOutput.push(`[x] ${taskName}`);
-
-                            // find the task in the task list
-                            const taskIndex = tasksList.indexOf(taskName);
-                            if(taskIndex > -1) {
-                                tasksList.splice(taskIndex, 1);
-                            }
-                            while(messages.length > messagesSize) {
-                                messages.pop();
-                            }
-
-                            messages.push({
-                                role: "assistant",
-                                content: pendingOutput.join('\n') 
-                                + '\n/TASK'
-                            })
-                            taskName = tasksList[0];
-                            messages.push({
-                                role: "user",
-                                content: 'Complete the task: ' + taskName
-                            })
-
-                            break;
-
-                        case 'SHOWTERMINAL':
-                            messages.push({
-                                role: "assistant",
-                                content: pendingOutput.join('\n')
-                            })
-                            messages.push({
-                                role: "user",
-                                content: shell.exec(`pwd;ls -la;`, { silent: true }).stdout
-                            })
-                            pendingOutput = [];
-                            break;
-
-                        case 'DECOMPOSITION':
-                            // get the first incomplete task
-                            tasksList = pendingOutput.filter((line)=> line.startsWith('[ ]'));
-                            messagesSize = messages.length;
-                            const incompleteTask = tasksList[0];
-                            messages.push({
-                                role: "assistant",
-                                content: pendingOutput.join('\n') 
-                                + '\n/DECOMPOSITION'
-                            })
-                
-                            messages.push({
-                                role: "user",
-                                content:'Complete the task: ' + incompleteTask
-                            })
-                            break;
-
-                        case 'ASK':
-                            const question = statement.split(' ').slice(1).join(' ');
-                            const answer = await enquirer.prompt({
-                                type: 'input',
-                                name: 'answer',
-                                message: question,
-                            });
-                            pendingOutput.push(answer.answer)
-                            break;
-
-                        case 'DONE':
-                            messages.push({
-                                role: "system",
-                                content: pendingOutput.join('\n')
-                            })
-                            isDone = true;
-                            return messages;
-
-                        default:
-                            pendingOutput.push(`Invalid command: ${command}`);
-                            break;
-                    }
-                } else {
-                    if(!statement.trim()) {
-                        continue;
-                    }
-                    const bashCallout = statement;
-                    const bashResults = shell.exec(bashCallout, { silent: true });
-                    if(bashResults.stdout) {
-                        pendingOutput.push(bashResults.stdout);
-                    }
-
-                    pendingOutput.push(bashResults.stdout);
-                    if(bashResults.stderr) {
-                        pendingOutput.push('ERROR' + bashResults.stderr);
-                    }
-
+                        break;
                 }
             }
 

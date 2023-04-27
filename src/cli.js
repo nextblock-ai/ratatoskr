@@ -11,7 +11,6 @@ const {
 const {
     queryCodebase,
 } = require('./prompt');
-const { message } = require("blessed");
 
 (async () => {
     // take a single path parameter as the value
@@ -36,7 +35,7 @@ const { message } = require("blessed");
         const log = (message) => {  onUpdate(message);  }
         const messages = existingMessages.length > 0 ? existingMessages : [{
             role: "system",
-            content: `You are a master developer skilled in bash commands, task decomposition, app design and implementation. Given user input, you either implement the task in one-shot or you decompose the task then implement the sub-tasks.
+            content: `You are a master software developer skilled in bash commands, task decomposition, and app design and implementation. Given user input, you either implement the task in one-shot or you decompose the task then implement the sub-tasks.
 1. No natural-language responses or commentary. ALL COMMANDS ON THEIR OWN LINE
 2. Complete task, then output /TASK <taskname>.
 3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it. Do not prefix bash commands with anything. 
@@ -44,7 +43,7 @@ const { message } = require("blessed");
 4. Request stdout data with /SHOWTERMINAL ON ITS OWN LINE
 5. Use cat, tail, echo, sed, and unified diff to manipulate files.
 6. Ask questions with /ASK <question> on its own line
-7. Finish work with /DONE on its own line
+7. Signal completion by outputting /DONE on its own line
 8. ||NO COMMENTARY OR FORMATTING||`
         },{
             role: "user",
@@ -53,33 +52,37 @@ const { message } = require("blessed");
     
     `}];
         process.chdir(path);
-        let iterations = 0, pendingOutput = [
-        ];
+        let iterations = 0, pendingOutput = [];
         log(`Starting software developer with ${messages.length} messages in ${path}`);
-        let potentialBashStatements = [], tasksList = [], messagesSize = 0;
+        let tasksList = [], messagesSize = 0;
         while(iterations < maxIterations) {
+
+            // query gpt-4 with the current set of messages
             const spinner = ora("Querying GPT-4").start();
-            let result='';;
+            let result = '';
             try {
+                log(messages[messages.length - 1].content);
                 result = await getCompletion(messages, {
                     model: 'gpt-4',
                     max_tokens: 2048,
                     temperature: 0.01,
                 })
+                log(result)
             } catch (e) {
                 if(JSON.stringify(e).indexOf(' currently overloaded with other requests') > -1) {
                     continue;
                 };
             }
             spinner.stop();
-            if(result === '/DONE') {
+
+            if(result.startsWith('/DONE')) {
                 const query = await enquirer.prompt({
                     type: 'input',
                     name: 'query',
                     message: 'What is the query?',
                 });
                 await softwareDeveloper(query.query, _path, 10, [], undefined, (data)=> {
-                    console.log(data);
+                    console.log(data)
                 });
                 return;
             }
@@ -92,16 +95,8 @@ const { message } = require("blessed");
                 'DONE',
             ]
             let isDone = false
-            potentialBashStatements = result.split('\n');
-
-            // filter out anything that starts with /
-            let bashStatement = potentialBashStatements.filter(e => !e.startsWith('/')).join('\n');
-            if(!bashStatement.trim()) {
-                continue;
-            }
-            
             if(result.startsWith('/ASK')) {
-                const question = bashStatement.split(' ').slice(1).join(' ');
+                const question = result.split(' ').slice(1).join(' ');
                 const answer = await enquirer.prompt({
                     type: 'input',
                     name: 'answer',
@@ -111,40 +106,44 @@ const { message } = require("blessed");
                     role: "assistant",
                     content: question
                 })
+                log(question)
                 messages.push({
                     role: "user",
                     content: answer.answer
                 })
+                log(answer.answer)
                 continue;
             }
-            log(result);
 
-            const bashResults = shell.exec(bashStatement, { silent: true });
-            console.log(bashResults.stdout);
-            if(bashResults.stdout) {
-                pendingOutput.push(bashResults.stdout);
+            // filter out anything that starts with /
+            let bashStatement = result.split('\n').filter(e => !e.startsWith('/')).join('\n');
+            if(bashStatement.trim()) {
+                const bashResults = shell.exec(bashStatement, { silent: true });
+                log(bashResults.stdout);
+                if(bashResults.stdout) {
+                    pendingOutput.push(bashResults.stdout);
+                }
+                messages.push({
+                    role: "user",
+                    content: bashStatement
+                })
+                log(bashStatement)
+                messages.push({
+                    role: "system",
+                    content: bashResults
+                })
+                log(bashStatement)
+                if(bashResults.stderr) {
+                    pendingOutput.push('ERROR' + bashResults.stderr);
+                }
             }
 
-            messages.push({
-                role: "user",
-                content: bashStatement
-                + '\n/TASK'
-            })
-            messages.push({
-                role: "system",
-                content: bashResults
-                + '\n/TASK'
-            })
-
-            if(bashResults.stderr) {
-                pendingOutput.push('ERROR' + bashResults.stderr);
-            }
-
-            // if it starts with [ then its a bash statement]
+            // if it starts with [ ] then it's a task
             if(bashStatement.startsWith('[')) {
-                // this is a bash statement
+                // this is a task
                 if(bashStatement.includes('[ ]')) { 
                     pendingOutput.push(bashStatement);
+                    log(bashStatement);
                 }
             }
             // if it starts with / then its a command
@@ -173,19 +172,23 @@ const { message } = require("blessed");
                             content: pendingOutput.join('\n') 
                             + '\n/TASK'
                         })
+                        log(pendingOutput.join('\n') + '\n/TASK')
                         taskName = tasksList[0];
                         messages.push({
                             role: "user",
                             content: 'Complete the task: ' + taskName
                         })
-
+                        log('Complete the task: ' + taskName)
                         break;
 
                     case 'SHOWTERMINAL':
+                        bashResults + "\n" + shell.exec('ls', { silent: true }).stdout;
                         messages.push({
                             role: "user",
                             content: bashResults
                         })
+                        log(bashResults)
+                        bashResults =  '';
                         pendingOutput = [];
                         break;
 
@@ -199,11 +202,12 @@ const { message } = require("blessed");
                             content: pendingOutput.join('\n') 
                             + '\n/DECOMPOSITION\n'
                         })
-            
+                        log(pendingOutput.join('\n') + '\n/DECOMPOSITION\n')
                         messages.push({
                             role: "user",
                             content:'Complete the task: ' + incompleteTask
                         })
+                        log('Complete the task: ' + incompleteTask)
                         break;
 
                     default:
@@ -218,6 +222,7 @@ const { message } = require("blessed");
                     role: "assistant",
                     content: pendingOutput.join('\n')
                 })
+                log(pendingOutput.join('\n'))
                 pendingOutput = [];
             }
 
@@ -231,7 +236,7 @@ const { message } = require("blessed");
     }
 
     await softwareDeveloper(query.query, _path, 10, [], undefined, (data)=> {
-        console.log(data);
+        console.log(data)
     });
 
 

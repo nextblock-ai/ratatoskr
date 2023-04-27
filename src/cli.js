@@ -59,11 +59,18 @@ const { message } = require("blessed");
         let potentialBashStatements = [], tasksList = [], messagesSize = 0;
         while(iterations < maxIterations) {
             const spinner = ora("Querying GPT-4").start();
-            let result = await getCompletion(messages, {
-                model: 'gpt-4',
-                max_tokens: 2048,
-                temperature: 0.01,
-            })
+            let result='';;
+            try {
+                result = await getCompletion(messages, {
+                    model: 'gpt-4',
+                    max_tokens: 2048,
+                    temperature: 0.01,
+                })
+            } catch (e) {
+                if(JSON.stringify(e).indexOf(' currently overloaded with other requests') > -1) {
+                    continue;
+                };
+            }
             spinner.stop();
             if(result === '/DONE') {
                 log('Done');
@@ -105,6 +112,7 @@ const { message } = require("blessed");
             }
             
             const bashResults = shell.exec(bashStatement, { silent: true });
+            console.log(bashResults.stdout);
             if(bashResults.stdout) {
                 pendingOutput.push(bashResults.stdout);
             }

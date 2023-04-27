@@ -1,20 +1,12 @@
-
 // file for the HomePage component
 import { Layout, Tree } from "antd";
 import React, { useState, useEffect } from "react";
-import { AudioOutlined } from '@ant-design/icons';
 import dynamic from "next/dynamic";
 import axios from "axios";
 import 'easymde/dist/easymde.min.css';
 import ScriptRunner from "./ScriptRunner";
 import LocationBar from "./LocationBar";
 import SpeechCognizerComponent from "./SpeechCognizerComponent";
-
-const microphone = '🎤'
-const microphoneSlash = '🎤🚫'
-const microphoneOff = '🔇'
-const microphoneOffSlash = '🔇🚫'
-const speaker = '🔊'
 
 const EditorComponent = dynamic(() => import("react-simplemde-editor"), {
     ssr: false,
@@ -100,7 +92,6 @@ const HomePage = () => {
       (commentary as any).push("Command: " + d.message.data);
       setCommentary(commentary);
       // if the message contains the word 'complete', then we're done
-        <AudioOutlined onClick={() => setListening(!listening)} style={{ position: 'fixed', bottom: 20, left: 20, fontSize: 24, zIndex: 1000, cursor: 'pointer' }} />
       // if(d.message.toLowerCase().indexOf("complete") >= 0) {
         
       // }
@@ -131,7 +122,6 @@ const HomePage = () => {
       console.log("executing command", value);
       const command = debouncedPerformCommand(value);
       setCommandBusy(false)
-      setCommentary('');
       setCommand("");
       localStorage && localStorage.setItem("command", '');
     }
@@ -175,7 +165,7 @@ const HomePage = () => {
                             setContent(res.data.file);
                             if(!(selectedKeys[0] as any).endsWith('.script')) {
                                 res = await axios.get(`/api/summary?path=${pa}`);
-                                (commentary as any).unshift(res.data.message);
+                                (commentary as any).push(res.data.message);
                                 if (res.data.message)setCommentary(commentary);
                                 setIsScript(false);
                             } else {

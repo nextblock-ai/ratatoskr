@@ -10,7 +10,9 @@ type Data = {
 function buildTree(rootPath: string): any[] {
   const filesAndFolders = fs.readdirSync(rootPath);
   const tree = filesAndFolders.map((item) => {
-    if(item === '.next' || item === 'node_modules' || item === '.git') return null;
+    if( item === 'node_modules' || item.startsWith('.') ) {
+      return null;
+    }
     const itemPath = path.join(rootPath, item);
     const stats = fs.statSync(itemPath);
 

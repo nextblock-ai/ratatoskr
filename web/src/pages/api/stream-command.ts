@@ -1,6 +1,6 @@
 // pages/api/events.js
 import nextConnect from 'next-connect';
-import { commandLoop } from '@/command';
+import { commandLoop, softwareDeveloper } from '@/command';
 
 const handler = nextConnect();
 
@@ -27,7 +27,11 @@ handler.get(async (req: any, res: any) => {
         console.log('update', update);
     }
 
+    const path = process.cwd();
+
     // run the command and send the output to the client
+    await softwareDeveloper(command, path, 10, [], res, (data: any) => writeData({data}));
+
     await commandLoop(command, res, (data: any) => writeData({data}));
     // Clean up when the connection is closed
     req.on('close', () => {

@@ -120,8 +120,8 @@ async function getCompletion(messages, requeryIncompletes = true) {
     const conversation = {
         model: 'gpt-4',
         messages,
-        max_tokens: 1024,
-        temperature: 0.01,
+        max_tokens: 2048,
+        temperature: 0.6,
     }
     const _response = [];
     const _getResponse = () => _response.join('');
@@ -131,12 +131,10 @@ async function getCompletion(messages, requeryIncompletes = true) {
 
     const _query = async (conversation, iter) => {
 
-        const spinner = ora("Querying GPT-4").start();
         let completion = await openai.createChatCompletion(conversation);
         completion = completion.data.choices[0].message.content.trim();
         _response.push(completion);
-        spinner.stop();
-
+        
         return new Promise((resolve) => {
             const responseMessage = _getResponse();
             isJson = iter === 0 && _isResponseJson();

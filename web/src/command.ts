@@ -22,195 +22,152 @@ const gatherLikelyDependencies = async (shellPath: string, files: any, userInput
     return loadedFiles;
 }
 
-// given a list of files and a user input, returns whether additional information is required
-const decomposeTask = async (shellPath: string, userInput: string) => {
-    // get the decomposition for the user tasks - this is the specific speps to complete the task
-    return queryDecompose(
-        shellPath,
-        userInput,
-    );
-}
 
-// given a list of files and a user input, returns whether additional information is required
-export async function commandLoop(userInput: string, resp: any, onUpdate: any) {
+export async function softwareDeveloper(userRequest: any, path: string, maxIterations: number = 10, existingMessages: any = [], sseStream: any, onUpdate: Function) {
+    const log = (message: string) => {  console.log(message); onUpdate(message);  }
+    const messages = existingMessages.length > 0 ? existingMessages : [{
+        role: "system",
+        content: `You are an iterative autonomous master application builder. You perform all file manipulation using bash commands.
+1. YOU ARE UNABLE TO MAKE NATURAL-LANGUAGE CONVERSATIONAL RESPONSES
+2. Perform the current task. If you complete it, output /TASK <taskname> on the last line of your output.
+3. If you cannot easily perform the task in a single iteration, then decompose the task into multiple tasks and [output each on its own line with a checkbox in form, ending with /DECOMPOSED, OUTPUT ONLY THE TASKS ONE ON EACH LINE WITH NO COMMENTARY]
+4. You request stdout data when you need it by outputting /SHOWTERMINAL on its own line.
+5. You use cat and tail to view files, echo, sed and unified diff format to update files.
+6. You ask questions by outputting /ASK <question>
+6. Once you are done with your work, output /DONE on its own line
+[[YOU HAVE NO ABILITY TO MAKE NATURAL-LANGUAGE RESPONSES OR PROVIDE COMMENTARY]]`
+    },{
+        role: "user",
+        content: `Primary Goal:
+[ ] ${userRequest}
 
-    onUpdate(`Received command: ${userInput}`);
+`}];
+    process.chdir(path);
+    let iterations = 0, terminalOutput = [
+        shell.exec('pwd;ls').stdout,
+    ];
+    log(`Starting software developer with ${messages.length} messages in ${path}`);
+    while(iterations < maxIterations) {
+        log(`Iteration ${iterations} of ${maxIterations}`);
+        const result = await getCompletion(messages, {
+            model: 'gpt-4',
+            max_tokens: 2048,
+            temperature: 0.6,
+        })
+        log(`${iterations} ${result}`);
 
-    // get the working directory, and load the files
-    const shellPath = config.path
-    process.chdir(shellPath);
-
-    const files = await loadFiles(shellPath);
-    onUpdate(`Loaded ${files.length} files from ${shellPath}`);
-
-    // // decompose the task into subtasks
-    onUpdate('Decomposing task...');
-    let decomposedTasks = await decomposeTask(shellPath, userInput);
-    decomposedTasks = decomposedTasks.map((t: any)=>({
-        task: t.action,
-        command: t.shell_command,
-    }));
-    onUpdate('Decomposed tasks: ' + decomposedTasks.map((t:any)=>(`${t.command}: ${t.task}`)).join('\n'));
-
-    let currentTaskIndex = 0;
-    function getCurrentTask() {
-        const decomposedTaskStrings = decomposedTasks.map((t:any)=>(`${t.command}: ${t.task}`));
-        // get the decomposed tasks up to the last one not including the current task
-        const dtasks = decomposedTaskStrings.slice(0, currentTaskIndex).map((t:any)=>`${t} (complete)`).join('\n');
-        // get the current task
-        const currentTask = decomposedTaskStrings[currentTaskIndex] + ' (incomplete)';
-        return `USER REQUEST:
-        
-${userInput}
-
-COMPLETED TASKS:  ${dtasks || userInput}
-CURRENT TASK:  ${currentTask}
-`
-    }
-
-    let working = true
-
-    while(working) {
-        const steps = [];
-        // get the current task - this packages the main request and the subtasks together
-        let currentTask = getCurrentTask();
-        onUpdate(`current task: ${currentTask}`);
-        console.log('current task', currentTask);
-
-        // here we need to get the likely dependencies for the current tassk
-        let loadedFiles = await gatherLikelyDependencies(shellPath, files, currentTask);
-        const likelyDeps = 'Gathered likely dependencies: ' + Object.keys(loadedFiles).join(', ');
-        
-        steps.push(likelyDeps);
-        onUpdate('likely dependencies: ' + likelyDeps);
-        console.log('likely dependencies', likelyDeps);
-        
-        // here we try to do the actual completion
-        const messages = createConversation(loadedFiles, currentTask);
-        const completion = await getCompletion(messages);
-        onUpdate('completion: '+ completion);
-        
-        // we parse the completion and get response
-        let commands = JSON.parse(jsonrepair(completion));
-        if (commands.response) commands = commands.response;
-
-        // we get all the parts of the response
-        let updatedFilePatches = commands.updatedFiles ? commands.updatedFiles : ''
-        let bashCommands = commands.bashCommands ? commands.bashCommands : ''
-        let updatedFileExplanations = updatedFilePatches.explanations ? updatedFilePatches.explanations : ''
-        let updatedFileDiffs = updatedFilePatches.unifiedDiffFormat ? updatedFilePatches.unifiedDiffFormat : ''
-        let conversationalResponse = commands.conversationalResponse ? commands.conversationalResponse : ''
-        let taskCompleted = commands.taskCompleted ? commands.taskCompleted : true
-
-        if(updatedFilePatches) {
-            steps.push('Updated files: ' + Object.keys(updatedFilePatches).join(', '));
-            onUpdate('updated files: ' + Object.keys(updatedFilePatches).join(', '));
-            console.log('updated files', Object.keys(updatedFilePatches).join(', '));
-        }
-        if(updatedFileExplanations) {
-            steps.push('Updated file explanations: ' + Object.keys(updatedFileExplanations).join(', '));
-            onUpdate('updated file explanations: ' + Object.keys(updatedFileExplanations).join(', '));
-            console.log('updated file explanations', Object.keys(updatedFileExplanations).join(', '));
-        }
-        if(updatedFileDiffs) {
-            steps.push('Updated file diffs: ' + Object.keys(updatedFileDiffs).join(', '));
-            onUpdate('updated file diffs: ' + Object.keys(updatedFileDiffs).join(', '));
-            console.log('updated file diffs', Object.keys(updatedFileDiffs).join(', '));
-        }
-
-        let consoleOutput = '';
-        if (bashCommands) {
-            steps.push('Bash commands: ' + bashCommands.join(', '));
-            onUpdate('bash commands: ' + bashCommands.join(', '));
-            console.log('bash commands', bashCommands.join(', '));
-
-            for (let i = 0; i < bashCommands.length; i++) {
-                steps.push(`Bash command: ${bashCommands[i]}`);
-                onUpdate('bash command: ' + bashCommands[i], );
-                const { stdout, stderr, code } = shell.exec(bashCommands[i]);
-                if(stdout) steps.push(`stdout (${bashCommands[i]}): ${stdout}`);
-                if(stderr) steps.push(`stderr (${bashCommands[i]}): ${stderr}`);
-                consoleOutput += stdout + '\n' + stderr + '\n';
-            }
-        }
-        console.log('BASH', consoleOutput)
-
-        // we append the current task to the steps
-        currentTask = currentTask + '\n\n' + steps.join('\n\n'); 
-        conversationalResponse += '\n\n' + consoleOutput;
-
-        onUpdate('console output', conversationalResponse);
-
-        if (updatedFileDiffs)
-            for (let i = 0; i < Object.keys(updatedFileDiffs).length; i++) {
-                let fileName = Object.keys(updatedFileDiffs)[i];
-                let fileContent = updatedFileDiffs[fileName]
-                const file = files.find((f: { name: string; }) => f.name.includes(fileName));
-                if (file) {
-                    const fpath = path.join(config.path, fileName);
-                    const newContent = applyUnifiedDiff(fileContent, file.content);
-                    if(!newContent.error && newContent.patchedContent) {
-                        fs.renameSync(fpath, fpath + '.bak')
-                        fs.writeFileSync(fpath, newContent.patchedContent, "utf-8");
-                        file.content = newContent.patchedContent;
-                        steps.push(`file ${fileName} updated`);
-                        onUpdate(`file ${fileName} updated`, conversationalResponse);
-                    } else {
-                        steps.push(`error: ${newContent.error}`);
-                        onUpdate('error', newContent.error);
-                    }
+        const isFirstRun = iterations === 0;
+        const potentialBashStatements = result.split('\n');
+        let hasBashStatements = potentialBashStatements.find((s: string) => s.includes('[ ]')) === undefined;
+        if(!isFirstRun || hasBashStatements) {
+            log(`Bash statements: ${potentialBashStatements.length}`)
+            for(let i = 0; i < potentialBashStatements.length; i++) {
+                const bashStatement = potentialBashStatements[i];
+                if(bashStatement.startsWith('/')) continue;
+                terminalOutput.push('>> ' + bashStatement);
+                const bashResult = shell.exec(bashStatement);
+                if(bashResult.stderr) {
+                    terminalOutput.push('ERROR: ' + bashResult.stderr);
+                    log(`ERROR: ${bashResult.stderr}`);
+                    messages[4].content = bashResult.stderr;
+                    break;
+                } else {
+                    terminalOutput.push(bashResult.stdout);
+                    log(bashResult.stdout);
                 }
             }
-
-        if(!updatedFileDiffs && taskCompleted) {
-            // we move on to the next task
-            currentTaskIndex++;
-            onUpdate('task completed', conversationalResponse);
-            console.log('task completed', conversationalResponse);
-
-            if(currentTaskIndex >= decomposedTasks.length) {
-                // we are done
-                working = false;
-                onUpdate('request completed: ' + conversationalResponse);
-                console.log('request completed', conversationalResponse);
-                resp.close();
-                return true;
-            }
         }
 
-        steps.push(`Updated files: ${Object.keys(updatedFileExplanations).join(', ')}`);
-        steps.push(`Updated file diffs: ${Object.keys(updatedFileDiffs).join(', ')}`);
-        steps.push(`Conversational response: ${conversationalResponse}`);
+        // slot 0 - main prompt
+        // slot 1 - user request
+        // slot 2 - ai response (if simple, task is complete. If not simple, contains subtasks - all subtasks get appended to 2
+        // slot 3 - application code
+        // slot 4... - AI application enhancements - copy back to slot 3 then re-iterate
+        const cIncludes = (str: string) => result.indexOf(str) > -1;
+        const isDone = cIncludes('/DONE');
+        const isTaskComplete = cIncludes('/TASK');
+        const isDecomposed = cIncludes('/DECOMPOSED');
+        const isShowTerminal = cIncludes('/SHOWTERMINAL');
+        const isAsk = cIncludes('/ASK');
 
-        onUpdate('updated files ' + Object.keys(updatedFileExplanations).join(', '));
-        onUpdate('updated file diffs ' + Object.keys(updatedFileDiffs).join(', '));
-        onUpdate('conversational response' + conversationalResponse);
+        if(isTaskComplete) { log('Task complete'); }
+        if(isDecomposed) { log('Task decomposed'); }
+        if(isShowTerminal) { log('Show terminal'); }
+        if(isAsk) { log('Ask'); }
+        if(isDone) { log('Done'); }
 
-        
-        // if additional information is required, we add it to the userInput and loop again
-        if(!taskCompleted) {
-             // we query to see if we need more information - usually we might need to add more files
-            const result = await queryIsAdditionalInformationRequired(currentTask, {
-                updatedFileExplanations,
-                updatedFileDiffs,
-                currentTask
-            });
+        const validCommands = [
+            'TASK',
+            'DECOMPOSED',
+            'SHOWTERMINAL',
+            'ASK',
+            'DONE',
+        ]
 
-            currentTask = currentTask += '\nThese files are also needed: ' + result.additionalFiles;
-            onUpdate('additional files needed', result.additionalFiles);
+        let command = result.split('/');
+        if(command.length > 1) command = command[command.length - 1].trim();
+        // check to make sure the command is valid
+        if(command && validCommands.includes(command)) {
+            messages[3].content = result.replace(`/${command}`, '');
         } else {
-            // if not, we are done!
-            currentTaskIndex++
-            if(currentTaskIndex >= decomposedTasks.length) {
-                working = false;
-                onUpdate('task complete', 'task complete');
-                resp.close();
-                return 'task complete';
+            messages[3].content = result;
+        }
+
+        if(isDone) {
+            log('Done');
+            onUpdate({});
+            sseStream.send(null);
+            return {
+                output: messages[3].content,
             }
-            onUpdate('task complete', currentTask);
+        } else if(isAsk) {
+            const question = command.split(' ')[1].trim();
+            return {
+                messages,
+                question,
+            }
+        } else if(isTaskComplete) {
+            // get the task name after the /TASK
+            const taskName = command.split(' ')[1].trim();
+            // mark as complete by replacing [ ] with [x] on the task
+            messages[2].content = messages[2].content.replace(`[ ] ${taskName}`, `[x] ${taskName}`)
+            terminalOutput = [];
+            iterations = 1;
+            log(`Task complete: ${taskName}`);
+            continue;
+        } else if(isShowTerminal) {
+            if(terminalOutput.length === 0) {
+                terminalOutput.push(shell.exec('pwd;ls').stdout);
+            }
+            messages[3].content =  result.replace('/SHOWTERMINAL', terminalOutput.join('\n'))
+            terminalOutput = [];
+            iterations = 1;
+            continue;
+        } else if(isDecomposed) {
+            if(isFirstRun) {
+                // we are done
+                messages[2].content = `Tasks to completion:\n${messages[2].content}`
+                iterations++;
+                log(`Decomposed: ${messages[2].content}`)
+                continue;
+            } else {
+                const potentiallyTasks = result.split('\n');
+                let wasTasks = false;
+                // we check them for [ ] and add them to the list if there is one
+                potentiallyTasks.forEach((task: string) => {
+                    if(task.includes('\n[ ]')) {
+                        messages[2].content += `\n${task}`;
+                        log(`Decomposed: ${messages[2].content}`)
+                        wasTasks = true;
+                    }
+                })
+                if(wasTasks) { continue; }
+            }
         }
     }
 }
+
+
 
 
 /*

@@ -21,6 +21,7 @@ const { message } = require("blessed");
         query = process.argv.slice(3).join(' ');
     }
     const _path = path.join(process.cwd(), shellPath);
+    process.chdir(_path);
     if(!query) {
         query = await enquirer.prompt({
             type: 'input',
@@ -30,6 +31,7 @@ const { message } = require("blessed");
         });
     }
 
+
     async function softwareDeveloper(query, path, maxIterations = 10, existingMessages = [], sseStream, onUpdate) {
         const log = (message) => {  onUpdate(message);  }
         const messages = existingMessages.length > 0 ? existingMessages : [{
@@ -37,7 +39,7 @@ const { message } = require("blessed");
             content: `You are a master developer skilled in bash commands, task decomposition, app design and implementation. Given user input, you either implement the task in one-shot or you decompose the task then implement the sub-tasks.
 1. No natural-language responses or commentary. ALL COMMANDS ON THEIR OWN LINE
 2. Complete task, then output /TASK <taskname>.
-3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it. 
+3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it. Do not prefix bash commands with anything. 
 4. Append /DECOMPOSITION after decomposing tasks
 4. Request stdout data with /SHOWTERMINAL ON ITS OWN LINE
 5. Use cat, tail, echo, sed, and unified diff to manipulate files.
@@ -54,7 +56,7 @@ const { message } = require("blessed");
         let iterations = 0, pendingOutput = [
         ];
         log(`Starting software developer with ${messages.length} messages in ${path}`);
-        let potentialBashStatements = [], tasksList = [];
+        let potentialBashStatements = [], tasksList = [], messagesSize = 0;
         while(iterations < maxIterations) {
             const spinner = ora("Querying GPT-4").start();
             let result = await getCompletion(messages, {
@@ -67,7 +69,7 @@ const { message } = require("blessed");
 
             const validCommands = [
                 'TASK',
-                'DECOMPOSED',
+                'DECOMPOSITION',
                 'SHOWTERMINAL',
                 'ASK',
                 'DONE',
@@ -92,35 +94,54 @@ const { message } = require("blessed");
                         pendingOutput.push(`Invalid command: ${command}`);
                     }
                     pendingOutput.push(`/${command}`);
-                    switch(command) {
+                    switch(command.split(' ')[0]) {
                         case 'TASK':
-                            const taskName = statement.split(' ').slice(1).join(' ');
+                            let taskName = statement.split(' ').slice(1).join(' ');
                             pendingOutput.push(`[x] ${taskName}`);
+
+                            // find the task in the task list
+                            const taskIndex = tasksList.indexOf(taskName);
+                            if(taskIndex > -1) {
+                                tasksList.splice(taskIndex, 1);
+                            }
+                            while(tasksList.length >messagesSize) {
+
+                            }
 
                             messages.push({
                                 role: "assistant",
                                 content: pendingOutput.join('\n') 
-                                + '\TASK'
+                                + '\n/TASK'
+                            })
+                            taskName = tasksList[0];
+                            messages.push({
+                                role: "user",
+                                content: 'Complete the task: ' + taskName
                             })
 
                             break;
 
                         case 'SHOWTERMINAL':
                             messages.push({
-                                role: "user",
+                                role: "assistant",
                                 content: pendingOutput.join('\n')
+                            })
+                            messages.push({
+                                role: "user",
+                                content: shell.exec(`pwd;ls -la;`, { silent: true }).stdout
                             })
                             pendingOutput = [];
                             break;
 
-                        case 'DECOMPOSED':
+                        case 'DECOMPOSITION':
                             // get the first incomplete task
                             tasksList = pendingOutput.filter((line)=> line.startsWith('[ ]'));
-                            const incompleteTask = pendingOutput.filter((line)=> line.startsWith('[ ]'))[0];
+                            messagesSize = messages.length;
+                            const incompleteTask = tasksList[0];
                             messages.push({
                                 role: "assistant",
                                 content: pendingOutput.join('\n') 
-                                + '\nDECOMPOSED'
+                                + '\DECOMPOSITION'
                             })
                 
                             messages.push({

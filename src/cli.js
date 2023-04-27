@@ -104,8 +104,8 @@ const { message } = require("blessed");
                             if(taskIndex > -1) {
                                 tasksList.splice(taskIndex, 1);
                             }
-                            while(tasksList.length >messagesSize) {
-
+                            while(messages.length > messagesSize) {
+                                messages.pop();
                             }
 
                             messages.push({

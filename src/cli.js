@@ -141,7 +141,7 @@ const { message } = require("blessed");
                             messages.push({
                                 role: "assistant",
                                 content: pendingOutput.join('\n') 
-                                + '\DECOMPOSITION'
+                                + '\n/DECOMPOSITION'
                             })
                 
                             messages.push({
@@ -186,7 +186,17 @@ const { message } = require("blessed");
                     if(bashResults.stderr) {
                         pendingOutput.push('ERROR' + bashResults.stderr);
                     }
+
                 }
+            }
+
+            // if there are pending output, add it to the messages
+            if(pendingOutput.length > 0) {
+                messages.push({
+                    role: "assistant",
+                    content: pendingOutput.join('\n')
+                })
+                pendingOutput = [];
             }
 
             if(isDone) {

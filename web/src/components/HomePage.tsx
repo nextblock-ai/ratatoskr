@@ -99,11 +99,7 @@ const HomePage = () => {
 
       (commentary as any).push("Command: " + d.message.data);
       setCommentary(commentary);
-      // if the message contains the word 'complete', then we're done
-        <AudioOutlined onClick={() => setListening(!listening)} style={{ position: 'fixed', bottom: 20, left: 20, fontSize: 24, zIndex: 1000, cursor: 'pointer' }} />
-      // if(d.message.toLowerCase().indexOf("complete") >= 0) {
-        
-      // }
+      
     };
   
     source.onerror = (event) => {
@@ -210,7 +206,7 @@ const HomePage = () => {
                     }
                     <EditorComponent
                       className="full-size"
-                      value={commentary.join('\n\n') || ''}
+                      value={commentary && commentary.join('\n\n') || ''}
                       onChange={handleCommandChange}
                       options={{ autoSize: true, toolbar: false, }}
                     />

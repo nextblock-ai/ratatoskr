@@ -117,8 +117,9 @@ const {
 
             // filter out anything that starts with /
             let bashStatement = result.split('\n').filter(e => !e.startsWith('/')).join('\n');
+            let bashResults
             if(bashStatement.trim()) {
-                const bashResults = shell.exec(bashStatement, { silent: true });
+                bashResults = shell.exec(bashStatement, { silent: true });
                 log(bashResults.stdout);
                 if(bashResults.stdout) {
                     pendingOutput.push(bashResults.stdout);
@@ -182,12 +183,11 @@ const {
                         break;
 
                     case 'SHOWTERMINAL':
-                        bashResults + "\n" + shell.exec('ls', { silent: true }).stdout;
+                        const se = shell.exec('ls', { silent: true });
                         messages.push({
                             role: "user",
-                            content: bashResults
+                            content: bashResults + "\n" + se.stdout
                         })
-                        log(bashResults)
                         bashResults =  '';
                         pendingOutput = [];
                         break;

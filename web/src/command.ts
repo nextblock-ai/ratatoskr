@@ -107,7 +107,7 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
     const log = (message: string | null) => {  onUpdate(message);  }
     const messages = existingMessages.length > 0 ? existingMessages : [{
         role: "system",
-        content: `You are an expert in autonomous iterative story development. You write exciting and engaging novels and stories, but you cannot create natural-language conversational responses. Follow these steps:
+        content: `You are an expert in autonomous iterative app development. You efficiently build visually appealing and functional apps, but you cannot create natural-language conversational responses.  Follow these steps:
 
 1. Automatically break down the complex task you're facing into smaller tasks, each on a separate line with a checkbox, then output (don't echo) #DECOMPOSED on its own line and stop.
 2. Implement the first decomposed task on your list by issuing the appropriate commands.

@@ -73,6 +73,26 @@ const validShellCommands = [
     'export',
     'history'];
 
+
+function bashSanitizer(command) {
+    // Ensuring proper quoting and escape characters in the command
+    const quotedCommand = command
+                            .replace(/\\/g, '\\\\')
+                            .replace(/"/g, '\\"')
+                            .replace(/'/g, "\\'");
+
+    // Wrapping the command in a subshell and executing it
+    const result = shell.exec(`/bin/bash -c "${quotedCommand}"`);
+
+    if (result.code !== 0) {
+        console.error(`Error: ${result.stderr}`);
+        return false;
+    } else {
+        console.log(`Output: ${result.stdout}`);
+        return true;
+    }
+}
+
 (async () => {
     // take a single path parameter as the value
     const shellPath = process.argv[2];
@@ -214,7 +234,8 @@ const validShellCommands = [
                 if(!curTaskName) {
                     throw new Error('No task name provided');
                 }
-                result = resultLines.slice(1).join('\n');
+                // TODO dont remove the task start marker
+                //result = resultLines.slice(1).join('\n');
                 messagesSize = messages.length - 1;
             }
             function commentOutInvalidBashLines(lines) {
@@ -223,8 +244,9 @@ const validShellCommands = [
                     if(validShellCommands.some((command) => line.indexOf(command) > -1)) {
                         return line;
                     }
-                    return `#${line}`;
-                }).join('\n');
+                    return undefined;
+                }).filter((line) => line !== undefined)
+                .join('\n');
             }
             if(isTaskEnd) {
                 // get the content previous to the task command
@@ -258,19 +280,27 @@ const validShellCommands = [
             }
 
             function executeBashCommand(command) {
-                const formattedCommand = command.replace(/[\r\n]+/g, ' ; ');
+                const formattedCommand = command
+                    .split('\n')
+                    .filter((line) => !line.startsWith('#'))
+                    .join('\n')
+                    .replace(/[\r\n]+/g, ' ; ')
                 function escapeSedCommand(command) {
                     return command
-                      .replace(/\\/g, '\\\\') // Escape backslashes
-                      .replace(/'/g, "\\'"); // Escape single quotes
+                        .replace(/\\/g, '\\\\')
+                        .replace(/"/g, '\\"')
+                        .replace(/'/g, "\\'");
                 }
                 command = command.split('\n').map((line) => {
-                    if(line.startsWith('sed')) {
+                //    if(line.startsWith('sed')) {
                         const sedCommand = line.split(' ').slice(1).join(' ');
                         return `sed '${escapeSedCommand(sedCommand)}'`;
-                    }
+                  //  }
                     return line;
                 }).join('\n');
+                if(command.indexOf('rm -rf') > -1) {
+                    throw new Error('rm -rf is not allowed');
+                }
                 const { stderr, stdout, code } = shell.exec(formattedCommand, { silent: true });
                 if (code !== 0) {
                     console.error(command, stderr);

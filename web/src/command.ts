@@ -78,6 +78,15 @@ function commentOutInvalidBashLines(lines: any) {
         return `#${line}`;
     }).join('\n');
 }
+function commentInInvalidBashLines(lines: any) {
+    lines = lines.split('\n');
+    return lines.map((line: string | string[]) => {
+        if(validShellCommands.some((command) => line.indexOf(command) > -1)) {
+            return line;
+        }
+        return (line as any).replace('#', '');
+    }).join('\n');
+}
 function executeBashCommand(command: string, log: any) {
     const formattedCommand = command.replace(/[\r\n]+/g, ' ; ');
     function escapeSedCommand(command: string) {
@@ -107,18 +116,19 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
     const log = (message: string | null) => {  onUpdate(message);  }
     const messages = existingMessages.length > 0 ? existingMessages : [{
         role: "system",
-        content: `You are an expert in autonomous iterative app development. You efficiently build visually appealing and functional apps, but you cannot create natural-language conversational responses.  Follow these steps:
+        content: `📝You are an expert in autonomous iterative app development. You efficiently build visually appealing and functional apps, but you cannot create natural-language conversational responses. Follow these steps, ensuring to always output single-line bash statements:
 
-1. Automatically break down the complex task you're facing into smaller tasks, each on a separate line with a checkbox, then output (don't echo) #DECOMPOSED on its own line and stop.
-2. Implement the first decomposed task on your list by issuing the appropriate commands.
-3. Use cat, tail, echo, sed, grep and unified diff to manipulate files.
-4. Signal completion of a task by marking the task complete in your tasks file then outputting #TASK <taskname> on its own line and stop.
-5. Finish implementing the decomposed tasks sequentially in this manner before you move forward.
-6. Implement the rest of the tasks using the above methodology. Utilize whatever tools necessary to complete the job, decomposing and implementing all tasks until you are done.
-7. [issue #ASK <question> to ask a question.]
-8. When outputting files, output one file at a time.
-9. When you complete the project, write #DONE at the end of your output.
-10. Note: |Your output goes directly into bash input without any natural-language responses or commentary |SO NEVER OUTPUT NATURAL LANGUAGE OR COMMENTARY|`
+        1️⃣ Automatically break down the complex task you're facing into smaller tasks, each on a separate line with a ✅ checkbox. Output the 🔍 magnifying glass emoji on its own line to represent the decomposition and stop. Remember, only output single-line bash statements. 
+        
+        2️⃣ Implement the first decomposed task on your list by issuing the appropriate commands.
+        3️⃣ Use cat, tail, echo, sed, grep, and unified diff to manipulate files. 
+        4️⃣ Signal completion of a task by marking the task complete in your tasks file, then outputting 📝 <taskname> on its own line and stop.
+        5️⃣ Finish implementing the decomposed tasks sequentially in this manner before you move forward. 
+        6️⃣ Implement the rest of the tasks using the above methodology. Utilize whatever tools necessary to complete the job, decomposing 🔎 and implementing📝 all tasks until you are done. Ensure that your outputs are single-line bash statements.
+        7️⃣ Issue  💬 <question> on its own line to ask a question.
+        8️⃣ Make sure to use single-line bash statements.
+        9️⃣ When you complete the project, write 🏁 on its own line.
+        🔟 Note: | Your output goes directly into bash input without any natural-language responses or commentary | SO NEVER OUTPUT NATURAL LANGUAGE, MULTILINE STATEMENTS OR COMMENTARY | 🚫 Always use single-line bash statements.`
     },{
         role: "user",
         content: query
@@ -128,6 +138,7 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
     log(`Starting software developer with ${messages.length} messages in ${path}`);
     let messagesSize = 0;
     let curTaskName = '';
+    let taskToMessagMap: any = {};
     while(iterations < maxIterations) {
         let result = '';
         try {
@@ -145,17 +156,18 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
         }
         // check to see if we have any commands to execute
         const [ 
-            isTaskStart, 
+            isTaskStart,
             isTaskEnd, 
             isDecomposed,
             isAsk, 
             isDone ] = [
-                'TASK',
-                '/TASK',
-                'DECOMPOSED',
-                'ASK',
-                'DONE',
+                '✅',
+                '📝',
+                '🔍',
+                '💬',
+                '🏁',
             ].map((command) => result.startsWith(`#${command}`));
+        const unalteredContent = result;
         let bashContent:any = '';
         if(isAsk) {
             const question = result.split(' ').slice(1).join(' ');
@@ -179,31 +191,42 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
         }
         if(isTaskStart) {
             let resultLines = result.split('\n');
-            curTaskName = resultLines[0].split(' ').slice(1).join(' ');
-            if(!curTaskName) {
-                throw new Error('No task name provided');
-            }
-            bashContent = resultLines.slice(1).join('\n');
-            messagesSize = messages.length - 1;
+            let taskIndex = 0;
+            resultLines.slice(1).forEach((line: string) => {
+                if(line.startsWith('✅')) {
+                    const theTask = line.split(' ').slice(1).join(' ');
+                    taskToMessagMap[theTask] = messages.length;
+                    taskIndex++;
+                    if(taskIndex === 1) { curTaskName = theTask;  }
+                    return;
+                }
+            })
         }
         if(isTaskEnd) {
+            
             // get the content previous to the task command
-            bashContent = result.split('#/TASK')[0]
+            bashContent = result.split('📝')[0]
             const taskName = result.split(' ').slice(1).join(' ');
-            let oldMessages = messages[messagesSize].content.split('\n');
+            
+            // parse the message that the command is in, remove the message
+            let oldMessages = messages[taskToMessagMap[taskName]] ? messages[taskToMessagMap[taskName]].content.split('\n') : [];
             oldMessages = oldMessages.filter((line: string | string[]) => line.indexOf(taskName) === -1 || line.indexOf(curTaskName) === -1)
-            messages[messagesSize].content = oldMessages.join('\n');
-            while(messages.length > messagesSize) {
-                messages.pop();
+            const newTask = result.split('📝')[1];
+            // get the new task if there is one 
+
+            // get the index of the task
+            const startIndex = taskToMessagMap[taskName];
+            if(startIndex) {
+                // remove all tasks after the start index
+                messages[startIndex].content = oldMessages.join('\n');
+                while(messages.length > startIndex) { messages.pop(); }
+                delete taskToMessagMap[taskName];
             }
-            messagesSize = messages.length - 1;;
         }
         else if(isDecomposed) {
             // get the content previous to the decomposed command
-            result = result.replace('#DECOMPOSED', '');
-            // if this is not bash content, then we need to comment out the lines
-            result = bashContent = commentOutInvalidBashLines(result);
-            messagesSize = messages.length;
+            result = result.replace('🔎', '#🔎');
+            bashContent = result;
         } else {
             // get the content previous to the decomposed command
             bashContent = result;
@@ -218,7 +241,9 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
 
         let bashResults
         if(bashContent && bashContent.trim()) {
+            bashContent = commentOutInvalidBashLines(bashContent);
             bashResults = executeBashCommand(bashContent, log);
+            bashContent = commentInInvalidBashLines(bashContent);
             const { stdout, stderr } = bashResults;
             let errStr = stdout
             errStr = stderr ? 'ERROR' + stderr : errStr;
@@ -237,9 +262,9 @@ async function softwareDeveloper(query: any, path: string, maxIterations = 10, e
         if(isDecomposed) {
             messages.push({
                 role: "assistant",
-                content: `#DECOMPOSED`
+                content: `🔎`
             })
-            log(`#DECOMPOSED`)
+            log(`🔎`)
         }
         if(isDone) {
             log('Done');

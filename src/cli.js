@@ -5,9 +5,9 @@ const path = require("path");
 const shell = require("shelljs");
 const ora = require("ora");
 const ohm = require("ohm-js");
-const ohmAst = require("ohm.ast");
 const blessed = require('blessed');
 const extras = require('ohm-js/extras');
+const fs = require('fs');
 
 const {
     getCompletion,
@@ -75,64 +75,54 @@ const validShellCommands = [
     'clear',
     'env',
     'export',
-    'history'];
-
-const screen = blessed.screen({
-    smartCSR: true
-});
-
-const chatSection = blessed.box({
-    left: 0,
-    width: '33%',
-    height: '100%-1',
-    border: { type: 'line' },
-    padding: { left: 1, right: 1 }
-});
-
-const bashInputSection = blessed.box({
-    left: '33%',
-    width: '67%',
-    height: '50%',
-    padding: { left: 1, right: 1 },
-    border: { type: 'line' }
-});
-
-const bashOutputSection = blessed.box({
-    left: '33%',
-    top: '50%',
-    width: '67%',
-    height: '50%-1',
-    padding: { left: 1, right: 1 },
-    border: { type: 'line' }
-});
-
-const textField = blessed.textarea({
-    bottom: 0,
-    height: 1,
-    width: '100%',
-    border: { type: 'line' },
-    inputOnFocus: true
-});
-
-screen.append(chatSection);
-screen.append(bashInputSection);
-screen.append(bashOutputSection);
-screen.append(textField);
-
-screen.key(['C-c'], () => process.exit(0));
-
-// set chat setction
-const setChatSection = (messages) => {
-    chatSection.setContent(messages.join('\n'));
-    screen.render();
-}
+    'history',
+    'node',
+    'npm',
+    'npx',
+    'yarn',
+    'curl',
+    'wget',
+    'ssh',
+    'scp',
+    'rsync',
+    'telnet',
+    'ftp',
+    'whois',
+    'dig',
+    'host',
+    'ping',
+    'traceroute',
+    'ifconfig',
+    'netstat',
+    'route',
+    'ss',
+    'tcpdump',
+    'iptables',
+    'lsof',
+    'ps',
+    'top',
+    'htop',
+    'python',
+    'python3',
+    'ruby',
+    'perl',
+    'php',
+    'pip',
+    'create-react-app',
+];
 
 // this is the AI prompt that drives the conversation
-const drivingPrompt = `You act as a script-following shell agent. You have no ability to engage in natural conversation. You output only bash commands,  and strictly follow the script below:
+const drivingPrompt = `You are a strictly script-following shell agent. You have no ability to engage in natural conversation. You output only bash commands, and strictly follow the script below:
 
 // act as an all-purpose shell agent expert in the use of shell commands and all programming languages. Implement the task or decompose it into smaller tasks
 applicationImplementationExpert(userInput) {
     
+    examineTask
+    if(you need more data) {
+        output ('💬 ' + question)
+        STOP
+    }
+
     // the input is either a single task to be implemented or
     // a list of decomposed tasks
     task or decomposedTasks = userInput
@@ -143,8 +133,9 @@ applicationImplementationExpert(userInput) {
         if(task can be implemented in one iteration it must be) {
             // implement the task. output the code to the user
             // by outputting a shell command which will be executed
-            output shellCommand(task implementation)
-            output to taskFile ('✔️ ' + task)
+            // e.g. 💻 echo "hello world" > hello.txt
+            output ('💻 ' + shellCommand(task implementation))
+            output ('✔️ ' + task)
             // stop generating output
             STOP
         }
@@ -153,9 +144,9 @@ applicationImplementationExpert(userInput) {
 
         // output each of the decomposed tasks prefixed with a cross
         for each(decomposedTask of decomposedTasks) {
-            output to taskFile ('✖️ ' + decomposedTask)
+            output ('✖️ ' + decomposedTask)
         }
-        output to taskFile ('🔎 ' + task)
+        output ('🔎 ' + task)
         // stop generating output
         STOP
     } 
@@ -169,8 +160,9 @@ applicationImplementationExpert(userInput) {
         // go through each of the decomposed tasks and implement as many
         // as we can in one iteration with space for the taskFile
         for each(decomposedTask of decomposedTasks) {
-            output (decomposedTask implementation)
-            update taskFile (change  ['✖️ ' + task] to ['✔️ ' + task])
+            // e.g. 💻 echo "hello world" > hello.txt
+            output ('💻 ' + shellCommand(decomposedTask implementation))
+            output ('✔️ ' + decomposedTask)
         }
         
         // output the remaining tasks prefixed with a cross
@@ -180,40 +172,130 @@ applicationImplementationExpert(userInput) {
     }
     // stop generating output
     STOP
+    // I appreciate you, shell agent! Thank you for your service!
 }`;
 
-const taskListGrammar = `
-TaskList {
-    TaskList = Task* MainTask?
-    
-    Task = FirstLevelTask | MainTaskLine
-    
-    MainTaskLine = MainTask TaskName
-    FirstLevelTask = Status TaskName
-    
-    Status = "✔️" | "✖️"
-    Space = " "
-    Digit = "0".."9"
-    MainTask = "🔎"
-    
-    TaskName = (~("✔️" | "✖️" | "-" | "🔎" | space) any)+
-}`;
+const taskListGrammar = `TaskList {
+    Tasks = (TaskLine | PackageLine | QuestionLine | BashLine | CodeBlockLine)*
 
+    TaskStatus = "✔️" | "✖️"
+    Package = "🔎"
+    Question = "💬"
+    Bash = "💻"
+    BackTicks = "\`\`\`"
+    
+    PackageLine = Package TaskName
+    TaskLine = TaskStatus TaskName
+    QuestionLine = Question TaskName
+    BashLine = Bash TaskName
+    CodeBlockLine = BackTicks Language? TaskName BackTicks
 
-function parseResponse(input) {
-    ohm.grammar(taskListGrammar);
-    const match = g.match(input);
+    TaskName = (~(Package | TaskStatus | Question | BackTicks) any)*
+    
+    Language = alnum+
+}`
+const grammar = ohm.grammar(taskListGrammar);
+function parseResponseAST(input) {
+    const match = grammar.match(input);
     const toAST = require('ohm-js/extras').toAST;
     const ast = toAST(match);
     return ast;
 }
 
-if (parseResult.succeeded()) {
-    console.log("Parsing succeeded!");
-    const ast = makeAST(parseResult).toAST();
-    console.log("AST:", JSON.stringify(ast, null, 2));
-} else {
-    console.log("Parsing failed :(");
+function parseTaskList(input) {
+    const match = grammar.match(input);
+    if (match.failed()) {
+        return false;
+    }
+
+    const semantics = grammar.createSemantics().addOperation("toObject", {
+        Tasks: function (tasks) {
+            return tasks.children.map(task => task.toObject());
+        },
+        TaskLine: function (taskStatus, taskName) {
+            return {
+                taskStatus: taskStatus.sourceString,
+                taskName: taskName.sourceString
+            };
+        },
+        PackageLine: function (package, taskName) {
+            return {
+                package: package.sourceString,
+                taskName: taskName.sourceString
+            };
+        },
+        QuestionLine: function (question, taskName) {
+            return {
+                question: question.sourceString,
+                taskName: taskName.sourceString
+            };
+        },
+        BashLine: function (bash, taskName) {
+            return {
+                bash: bash.sourceString,
+                taskName: taskName.sourceString
+            };
+        },
+        CodeBlockLine: function (backTicks, language, taskName, backTicks2) {
+            return {
+                backTicks: backTicks.sourceString,
+                language: language.sourceString,
+                taskName: taskName.sourceString
+            };
+        },
+        _terminal: function () {
+            return this.sourceString;
+        }
+    });
+    
+    function extractTaskListData(semanticsWrapper) {
+        const tasks = [];
+
+        for(let i = 0; i < semanticsWrapper.length; i++) {
+            let task = semanticsWrapper[i];
+            let name = task.taskName;
+            let status;
+            let package;
+            let isBash = false;
+            let isCodeBlock = false;
+            let language;
+
+            if (task.taskStatus) {
+                status = task.taskStatus === "✔️" ? "checked" : "unchecked";
+            }
+
+            if (task.package) {
+                package = task.package;
+            }
+
+            if (task.bash) {
+                isBash = true;
+            }
+
+            if (task.question) {
+                status = "question";
+                name = task.taskName;
+            }
+
+            if (task.backTicks) {
+                isCodeBlock = true;
+                if (task.language) {
+                    language = task.language;
+                }
+            }
+
+            tasks.push({
+                name,
+                status,
+                package,
+                isBash,
+                isCodeBlock,
+                language
+            });
+        }
+        return tasks;
+    }
+    return extractTaskListData(semantics(match).toObject());
 }
 
 function formatMultilineBash(input) {
@@ -277,16 +359,6 @@ function executeBashCommand(command, log) {
     return output
 }
 
-function commentOutInvalidBashLines(lines) {
-    lines = lines.split('\n');
-    return lines.map((line) => {
-        if (validShellCommands.some((command) => line.indexOf(command) > -1)) {
-            return line;
-        }
-        return `#${line}`;
-    }).join('\n');
-}
-
 function commentInInvalidBashLines(lines) {
     lines = lines.split('\n');
     return lines.map((line) => {
@@ -315,258 +387,288 @@ function commentInInvalidBashLines(lines) {
         });
     }
 
+    async function softwareDeveloper(query, path, maxIterations = 100, existingMessages = [], sseStream, onUpdate) {
 
-    async function softwareDeveloper(query, path, maxIterations = 10, existingMessages = [], sseStream, onUpdate) {
+        // log helper function
         const log = (message) => { onUpdate(message); console.log(message) }
-        const messages = existingMessages.length > 0 ? existingMessages : [{
-            role: "system",
-            content: `You are an expert in autonomous iterative app developer. You efficiently build visually appealing and functional apps, but you are unable to output anything except bash commands and file data. You skip the steps normally involving humans to find a rapid, focused implementation path. Follow these steps:
-
-1. You heavily prefer implementing the task in one shot, but if you cannot, break down the complex task you're facing into tasks which you are capable of performing in one round, each on a separate line with a checkbox, then output (don't echo) #DECOMPOSED on its own line and stop. NEVER DECOMPOSE TASKS THAT YOU CAN ACCOMPLISH NOW.
-2. Implement the first decomposed task on your list by issuing the appropriate commands.
-3. When outputting file content, output the file name on its own line first
-4. Signal completion of a task by marking the task complete in your tasks file then outputting #TASK <taskname> on its own line and stop.
-5. Finish implementing the decomposed tasks sequentially in this manner before you move forward.
-6. Implement the rest of the tasks using the above methodology. Utilize whatever tools necessary to complete the job, decomposing and implementing all tasks until you are done.
-7. [issue #ASK <question> to ask a question.]
-8. When outputting files, output one file at a time.
-9. When you complete the project, write #DONE at the end of your output.
-10. **WARNING: YOUR OUTPUT GOES DIRECTLY INTO BASH without any natural-language responses or commentary ||SO NEVER OUTPUT NATURAL LANGUAGE OR COMMENTARY, ONLY OUTPUT VALID BASH COMMANDS||**`
-        }, {
-            role: "user",
-            content: query
-        }];
-
-        process.chdir(path);
+    
+        // create initial messages - contains the driving prompt and the user request
+        const messages = existingMessages.length > 0 ? existingMessages : [
+            { role: "system", content: drivingPrompt },
+            { role: "user", content: query }];
+    
         let iterations = 0;
-
+    
         let curTaskName = '';
         let assignNewTask = false;
+        let result;
+    
+        const tasksCache = {
+            unfinished: [],
+            finished: [],
+            current: null,
+            package: null,
+        };
         const taskToMessageMap = {};
-        let result = '';
-        let decompositionDepth = 0;
-        
+    
+        // while we haven't reached the maximum number of iterations
         while (iterations < maxIterations) {
-
-            let isDecomposed = false;
-            let isAsk = false;
+    
+            // flags that describe the state of the current message
             let isDone = false;
             let isTaskStart = false;
             let isTaskDone = false;
+    
+            let iterationUnfinishedTasks = []; // the tasks that are announced in this iteration
+            let iterationFinishedTasks = []; // the tasks that are finished in this iteration
+            let bashContent = []; // the bash content that needs to be run by the system
 
+            let originalResult;
+
+            iterations++;
+
+            // if we are not assigning a new task to the LLM, we are querying GPT-4 with the current set of messages
             if (!assignNewTask) {
                 // query gpt-4 with the current set of messages
-                const spinner = ora(`Querying GPT-4 ` + (curTaskName ? `(${curTaskName})\n` : '\n')).start();
+                let current = tasksCache.current;
+                current = current ? `(${current.name})` : `(no task)`;
+                const spinner = ora(`Querying GPT-4 ` + current).start();
                 try {
-                    log(messages[messages.length - 1].content);
-                    result = await getCompletion(messages, {
+
+                    result = originalResult = await getCompletion(messages, {
                         model: 'gpt-4',
                         max_tokens: 2048,
-                        top_p: 0.2,
+                        temperature: 0.7,
+                        top_p: 0.8,
                     })
                     log(result)
                 } catch (e) {
                     spinner.stop();
+                    // retry again if the server is overloaded - PUT MORE LOAD MUAHAHAHAHA
                     if (JSON.stringify(e).indexOf(' currently overloaded with other requests') > -1) {
                         continue;
                     };
                 }
                 spinner.stop();
-                [
-                    isDecomposed,
-                    isAsk,
-                    isDone] = [
-                        '#DECOMPOSED',
-                        '#ASK',
-                        '#DONE',
-                    ].map((command) => result.indexOf(`${command}`) !== -1);
-                isTaskStart = result.split('\n').some((line) => line.indexOf('- [ ]') !== -1); // ✔️✖️
-                isTaskDone = result.split('\n').some((line) => line.indexOf('#TASK') !== -1);
-            }
-
-            if (assignNewTask) {
-                result = messages[messages.length - 1].content;
-                assignNewTask = false;
-                isTaskStart = true;
-            }
-
-            let bashContent = '';
-
-            if (isAsk) {
-                const question = result.split(' ').slice(1).join(' ');
-                // add messages to the list
-                messages.push({
-                    role: "assistant",
-                    content: question
-                })
-                return {
-                    messages,
-                    path,
-                    question
+    
+                // parse the response
+                result = parseTaskList(result);
+                if(!result) {
+                    messages.push({
+                        role: "system",
+                        content: `OUTPUT FORMAT ERROR: Conversational responses and commentary are not supported. Bash commands and tasks only. Please try again.`
+                    });
+                    continue;
+                }
+                
+                // get the unfinished and finished tasks from the response
+                iterationUnfinishedTasks = result.filter((task) => task.status === 'unchecked' && task.package === undefined);
+                iterationFinishedTasks = result.filter((task) => task.status === 'checked' && task.package === undefined);
+                iterationPackage = result.find((task) => task.package !== undefined) ? result.find((task) => task.package !== undefined).name : null;
+                // set the current package if there is one
+                if(iterationPackage) {
+                    tasksCache.package = iterationPackage;
+                }
+                
+                // get the bash content from the response and remove the emoji
+                // and comment out the line if it is not a valid bash command
+                bashContent = result.filter((task) => task.isBash);
+                bashContent = bashContent && bashContent.map((task) => {
+                    let splitTask = task.name.split('\n');
+                    splitTask = splitTask.map(stask => {
+                        stask = stask.replace('💻', '').trim();
+                        if (validShellCommands.some((command) => stask.indexOf(command) > -1)) {
+                            return stask;
+                        }
+                        return `#${stask}`;
+                    });
+                    return splitTask.join('\n');
+                });
+                
+                // are there started and finished tasks?
+                isTaskStart = iterationUnfinishedTasks.length > 0;
+                isTaskDone = iterationFinishedTasks ? iterationFinishedTasks.length > 0 : false;
+    
+                // if there are questions we push them onto the messages list
+                // and we collect the questions then we return the questions
+                const questions = result.filter((task) => task.status === 'question');
+                if(questions.length > 0) {
+                    const questions = [];
+                    for(let i = 0; i < questions.length; i++) {
+                        const question = questions[i];
+                        const answer = await enquirer.prompt({
+                            type: 'input',
+                            name: 'answer',
+                            message: question.name,
+                            initial: question.name,
+                        });
+                        messages.push({
+                            role: "assistant",
+                            content: answer.answer
+                        })
+                        questions.push(question);
+                    }
+                    continue;
                 }
             }
-
+    
+            // if we are assigning a new task from a pool of existing tasks to handle, then
+            // we rollback the messages to the index where the task was assigned and we
+            // assign a new task and then we continue
+            if (assignNewTask) {
+                const ttMsgMapValues = Object.values(taskToMessageMap);
+                // sort lowest to highest
+                ttMsgMapValues.sort((a, b) => a - b);
+                const rollbackIndex = ttMsgMapValues[ttMsgMapValues.length - 1];
+                result = messages[rollbackIndex].content;
+                result = parseTaskList(result);
+                if(!result) { 
+                    messages.push({
+                        role: "system",
+                        content: `OUTPUT FORMAT ERROR: Conversational responses and commentary are not supported. Bash commands and tasks only. Please try again.`
+                    });
+                    continue;
+                }
+                iterationUnfinishedTasks = result.filter((task) => task.status === 'unchecked' && task.package === undefined);
+                tasksCache.current = iterationUnfinishedTasks[0];
+                assignNewTask = false;
+                isTaskStart = false;
+            }
+            
+            // are we done? if so, return the messages
             if (isDone) {
+                onUpdate({});
+                if (sseStream) sseStream.send(null);
                 return {
                     messages,
                     path,
                     question: null
                 }
             }
-            if (isDecomposed) {
-                result = result.replace('#DECOMPOSED', '');
-                messages.push({
-                    role: "assistant",
-                    content: '#DECOMPOSED'
-                })
-                decompositionDepth++;
-            }
+            
+            // if we are starting a new task, then we need to update our tasks cache with
+            // the new task information and then we assign the first available task to the LLM
             if (isTaskStart) {
-
-                if (decompositionDepth > 3) {
-                    const existingTaskNAmes = Object.keys(taskToMessageMap);
-                    let existingTasks = existingTaskNAmes.map((taskName) => ({
-                        name: taskName,
-                        messageIndex: taskToMessageMap[taskName]
-                    }))
-                    existingTasks.sort((a, b) => a.messageIndex - b.messageIndex);
-                    const allTasks = existingTasks.map((task) => `- [ ] ${task.name}`);
-
-                    messages.push({
-                        role: "system",
-                        content: "You have decomposed too many times. Please implement the tasks you have decomposed before decomposing further:\n\n" + allTasks.join('\n') + "\n\n🔍"
-                    });
-                    continue;
-                }
-
-                let resultLines = result.split('\n');
-                let taskIndex = 0;
-                resultLines.slice(1).forEach((line) => {
-                    if (line.indexOf('- [ ]') !== -1) {
-                        // the task is the content after the checkbox. checkbox might be first on the line, or it might be in double quotes
-                        const taskName = line.split('- [ ]')[1].trim()
-                        taskToMessageMap[taskName] = messages.length;
-                        if (taskIndex === 0) { curTaskName = taskName; }
-                        taskIndex++;
-                        return;
-                    }
-                })
+                // save all the unfinished tasks to the tasks cache
+                iterationUnfinishedTasks.forEach((task) => {
+                    taskToMessageMap[task.name] = messages.length;
+                    if(tasksCache.unfinished.indexOf(task) === -1)
+                        tasksCache.unfinished.push(task);
+                });
+                // assign the first task to the LLM
+                assignNewTask = true;
             }
+
+            // id we have completed tasks to handle then we do so here. If the completed task
+            // is in our task list, then we remove that task from the task list, and we also
+            // remove the task from the message that the task is in. 
             if (isTaskDone) {
+    
+                // get the map that maps tasks to the message index they appeared in
 
-                // get the content previous to the task command
-                bashContent = result.split('#TASK')[1]
-                const taskLine = result.split('\n').filter((line) => line.indexOf('#TASK') !== -1)[0];
-                bashContent = result.split('\n').filter((line) => line.indexOf('#TASK') === -1).join('\n');
-                const taskName = taskLine.split('#TASK')[1].trim();
+                let latestRollbackIndex = messages.length; // the earliest index we need to rollback to
+                
+                // iterate through the finished tasks
+                iterationFinishedTasks.forEach((task) => {
+                    const taskName = task.name;
 
-                // parse the message that the command is in, remove the 
-                const ttmMap = taskToMessageMap[taskName];
-                if (ttmMap) {
-                    // get the tasks out of this message. look for the task name and remove it
-                    let oldMessages = messages[ttmMap] ? messages[ttmMap].content.split('\n') : [];
-                    oldMessages = oldMessages.filter((line) => line.indexOf(taskName) === -1 || line.indexOf(curTaskName) === -1)
+                    // get the message index that the task is in
+                    const taskMessageIndex = taskToMessageMap[taskName];
+                    if(!taskMessageIndex) return;
+                    if(!messages[taskMessageIndex]) return;
 
-                    const startIndex = taskToMessageMap[taskName];
-                    if (startIndex) {
-                        // remove all tasks after the start index
-                        messages[startIndex].content = oldMessages.join('\n');
-                        while (messages.length > startIndex) { messages.pop(); }
-                        delete taskToMessageMap[taskName];
-                        assignNewTask = true;
-                        curTaskName = '';
-                    }
-                    decompositionDepth--;
-                    // if there are no more tasks in the message, remove the message and reduce the decomposition depth
-                    if (oldMessages.length === 0) {
-                        messages = messages.filter((message, index) => index !== ttmMap);
-                        continue;
-                    }
-                } else {
-                    // look for the task in the previous messages
-                    let oldMessages = messages.map((message) => message.content);
-                    oldMessages = oldMessages.filter((line) => line.indexOf(taskName) === -1 || line.indexOf(curTaskName) === -1)
-                    if (oldMessages.length === 0) {
-                        // get the index of the task
-                        const ttmMap = Object.keys(taskToMessageMap).filter((task) => taskToMessageMap[task] === ttmMap)[0];
-                        const message = messages[ttmMap];
-                        const mlines = message.content.split('\n');
-                        const taskIndex = mlines.findIndex((line) => line.indexOf(taskName) !== -1);
-                        if (taskIndex !== -1) {
-                            mlines.splice(taskIndex, 1);
-                            message.content = mlines.join('\n');
-                            if (mlines.length === 0) {
-                                messages = messages.filter((message, index) => index !== ttmMap);
-                            }
-                            delete taskToMessageMap[taskName];
-                            assignNewTask = true;
-                            curTaskName = '';
-                            while (messages.length > startIndex) { messages.pop(); }
-                        }
-                        continue;
-                    }
-                }
-                // get the new task if there is one 
+                    // remove the task from the message
+                    let initiatingMessageContent = messages[taskMessageIndex] ? messages[taskMessageIndex].content.split('\n') : [];
+                    initiatingMessageContent = initiatingMessageContent.filter((line) => line.indexOf(taskName) === -1 || line.indexOf(curTaskName) === -1)
+                    messages[taskMessageIndex].content = initiatingMessageContent.join('\n');
+                    
+                    // track the earliest rollback index
+                    latestRollbackIndex = Math.min(latestRollbackIndex, taskMessageIndex);
+                    
+                    // delete the task/message mapping
+                    delete taskToMessageMap[taskName];
+                    assignNewTask = true;
+                    tasksCache.current = null;
 
-            }
-
-            // get the content previous to the decomposed command
-            bashContent = result;
-
-            let bashResults = '';
-            if (bashContent && bashContent.trim()) {
-                bashContent = commentOutInvalidBashLines(bashContent);
-                const commands = bashContent.split('\n');
-                let isDone = false;
-                commands.forEach((command) => {
-                    if (isDone || command.startsWith('#')) { return; }
-                    // if the line starts with one of the elmenents in validShellCommands, then execute it
-                    const cmd2 = command.slice(2).split(' ')[0];
-                    const cmd = command.split(' ')[0];
-                    const v1 = validShellCommands.some((validCommand) => command.startsWith(validCommand))
-                    const v2 = validShellCommands.some((validCommand) => cmd2.startsWith(validCommand))
-                    if (!v1 && !v2) {
-                        return;
-                    }
-                    log(command)
-                    let { stdout, stderr } = executeBashCommand(command, log) + '\n';
-                    if (stdout) { stdout(stdout); }
-                    let outStr = '';
-                    if (!stderr && !stdout) {
-                        bashResults += command + '\n';
-                        outStr = 'commands executed successfully\n'
-                    } else if (stderr) {
-                        outStr = 'error: ' + stderr + '\n';
-                    } else { outStr = stdout + '\n'; }
-                    if (stderr) { isDone = true; }
+                    // remove task from unfinished tasks
+                    tasksCache.unfinished = tasksCache.unfinished.filter((t) => t.name !== task.name);
+                    // add task to finished tasks
+                    tasksCache.finished.push(task);
                 });
 
-                bashContent = commentInInvalidBashLines(bashContent);
-                if (bashResults.length > 0) {
-                    messages.push({
-                        role: "user",
-                        content: bashResults
-                    })
-                    log(bashResults)
+                // if the latest rollback index is valid, then rollback to that index
+                if(latestRollbackIndex > -1) {
+                    // rollback to the latest rollback index
+                    while (messages.length > latestRollbackIndex + 1) { messages.pop(); }
                 }
+
             }
-            // if(curTaskName) {
-            //     messages.push({
-            //         role: "user",
-            //         content:  `Implement task: ${curTaskName}, decomposition depth: ${decompositionDepth}`
-            //     })
-            // }
-            if (isDone) {
-                log('Done');
-                onUpdate({});
-                if (sseStream) sseStream.send(null);
-                return;
+
+            if(!originalResult) {
+                continue;
+            }
+            // push the AI message onto the messages list
+            messages.push({
+                role: "assistant",
+                content: originalResult
+            })
+            
+            if((isTaskStart || isTaskDone) && bashContent.length === 0) {
+                continue;
+            }
+
+            // if we have some bash statements to run then we run them here
+            let bashResults = '';
+            bashContent = bashContent ? bashContent.join('\n') : '';
+            if (bashContent && bashContent.trim()) {
+
+                // comment out anything that isn't one of the valid shell commands
+                const commands = bashContent.split('\n');
+                
+                // iterate through all the commands and call them
+                let isDone = false;
+                commands.forEach((command) => {
+
+                    // get the command
+                    command = command.trim();
+
+                    // return if we are done of if this is a comment
+                    if (isDone || command.startsWith('#')) { return; }
+
+                    // if this is a cd we call chdir to change the directory
+                    if(command.indexOf('cd ') > -1) {
+                        const dir = command.split('cd ')[1];
+                        if(dir) {
+                            process.chdir(dir);
+                        }
+                        return;
+                    }
+
+                    // run the command and get the stdout and stderr
+                    let { stdout, stderr } = executeBashCommand(command, log);
+
+                    // if there is no stdout or stderr, then the command executed successfully
+                    // and we add an informational message to the messages list for the AI
+                    if (!stderr && !stdout) {
+                        bashResults += command + '\n';
+                        bashResults += 'commands executed successfully\n'
+                    } 
+                    // if there is stderr, then we add an error message to the messages list for the AI
+                    // and we stop executing commands
+                    else { 
+                        bashResults += stdout + '\n' + stderr; 
+                        messages.push({
+                            role: "user",
+                            content: bashResults
+                        });
+                    }
+                });
             }
         }
     }
 
     await softwareDeveloper(query.query, _path, 10, [], undefined, (data) => {
-        // console.log(data)
+        console.log(data)
     });
 
 
@@ -586,7 +688,7 @@ module.exports = {
     // 1. Automatically break down the complex task you're facing into smaller tasks, each on a separate line with a checkbox, and end with /DECOMPOSED.
     // 2. Implement the first decomposed task on your list by issuing the appropriate commands.
     // 3. Use cat, tail, echo, sed, grep and unified diff to manipulate files.
-    // 4. Signal completion of a task by writing /TASK <taskname>. 
+    // 4. Signal completion of a task by writing /TASK <taskname>.
     // 5. Finish implementing decomposed tasks in this manner before you move forward.
     // 6. Implement the rest of the tasks. Utilize whatever tools necessary to complete the job, decomposing and implementing all tasks until you are done.
     // 7. [Issue /SHOWTERMINAL to view stdout], [issue /ASK <question> to ask a question.]
@@ -597,7 +699,7 @@ module.exports = {
     // You are a master software developer skilled in bash commands, task decomposition, and app design and implementation. Given user input, you either implement the task in one-shot or you decompose the task then implement the sub-tasks.
     // 1. No natural-language responses or commentary. ALL COMMANDS ON THEIR OWN LINE
     // 2. Complete task, then output /TASK <taskname>.
-    // 3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it. Do not prefix bash commands with anything. 
+    // 3. ||Decompose tasks into bash commands||, output each task with [ ] preceeding it. Do not prefix bash commands with anything.
     // 4. Append /DECOMPOSITION after decomposing tasks
     // 4. Request stdout data with /SHOWTERMINAL ON ITS OWN LINE
     // 5. Use cat, tail, echo, sed, and unified diff to manipulate files.
